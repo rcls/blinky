@@ -1,0 +1,225 @@
+(footprint "L_1008_2520Metric-Adjusted"
+	(version 20241229)
+	(generator "pcbnew")
+	(generator_version "9.0")
+	(layer "F.Cu")
+	(descr "Inductor SMD 1008 (2520 Metric), square (rectangular) end terminal, IPC-7351 nominal, (Body size source: https://ecsxtal.com/store/pdf/ECS-MPI2520-SMD-POWER-INDUCTOR.pdf), generated with kicad-footprint-generator")
+	(tags "inductor")
+	(property "Reference" "REF**"
+		(at 0 -2.05 0)
+		(layer "F.SilkS")
+		(uuid "d5237e80-de9f-480d-a79c-e209adf7c311")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "L_1008_2520Metric-Adjusted"
+		(at 0 2.05 0)
+		(layer "F.Fab")
+		(uuid "ccbf94c8-c1c8-418b-a067-6b76a1efd46c")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "b6b4d69d-b13f-4b3d-88fa-b62c6aeb985a")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "3ef4f77d-ba0e-4997-9c5b-836d727ffed4")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_line
+		(start -0.261252 -1.11)
+		(end 0.261252 -1.11)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "2836f406-e520-4961-b406-61dd52fc065f")
+	)
+	(fp_line
+		(start -0.261252 1.11)
+		(end 0.261252 1.11)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "4d0865b4-4f0c-467e-b117-a73d6f3c58e9")
+	)
+	(fp_rect
+		(start -1.4 -0.89)
+		(end -0.38 0.89)
+		(stroke
+			(width 0.02)
+			(type default)
+		)
+		(fill no)
+		(layer "Dwgs.User")
+		(uuid "3c1e2148-be3a-4ed1-b88b-da7588fef43c")
+	)
+	(fp_rect
+		(start -1.2 -0.865)
+		(end 1.2 0.865)
+		(stroke
+			(width 0.02)
+			(type default)
+		)
+		(fill no)
+		(layer "Dwgs.User")
+		(uuid "5234aa0a-85a2-401e-9109-abfde274edbf")
+	)
+	(fp_rect
+		(start 0.38 -0.89)
+		(end 1.4 0.89)
+		(stroke
+			(width 0.02)
+			(type default)
+		)
+		(fill no)
+		(layer "Dwgs.User")
+		(uuid "612227c8-5266-49c6-a293-a3965abb8cb9")
+	)
+	(fp_line
+		(start -1.95 -1.35)
+		(end 1.95 -1.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "32c8caf1-90b1-4ac1-a065-358585c76d3a")
+	)
+	(fp_line
+		(start -1.95 1.35)
+		(end -1.95 -1.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "5c9de023-0e6c-4bc7-a7b0-44c09ad5597c")
+	)
+	(fp_line
+		(start 1.95 -1.35)
+		(end 1.95 1.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "bce8699d-9db1-4f7f-b67d-91b4ff5752c0")
+	)
+	(fp_line
+		(start 1.95 1.35)
+		(end -1.95 1.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "f6e345da-6282-4577-95da-997cf05aa658")
+	)
+	(fp_line
+		(start -1.25 -1)
+		(end 1.25 -1)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "84c9b512-bfd4-434b-9171-70984267c28e")
+	)
+	(fp_line
+		(start -1.25 1)
+		(end -1.25 -1)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "f6f1898c-53a6-4742-9631-fbfcdcbba87b")
+	)
+	(fp_line
+		(start 1.25 -1)
+		(end 1.25 1)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "277da748-5040-4de9-ad9d-5d2d6dd69fc5")
+	)
+	(fp_line
+		(start 1.25 1)
+		(end -1.25 1)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "666bfbba-544b-4a0d-9374-364133393f50")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "44774c6f-ff0c-4506-ba39-771a00cd889f")
+		(effects
+			(font
+				(size 0.62 0.62)
+				(thickness 0.09)
+			)
+		)
+	)
+	(pad "1" smd roundrect
+		(at -1.04 0)
+		(size 1.32 2.2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(roundrect_rratio 0.2)
+		(uuid "2a9a58fc-d80d-42e6-b7e4-edbaa3ba60ac")
+	)
+	(pad "2" smd roundrect
+		(at 1.04 0)
+		(size 1.32 2.2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(roundrect_rratio 0.2)
+		(uuid "13bc529e-46c1-4226-9750-2e1be1821845")
+	)
+	(embedded_fonts no)
+	(model "${KICAD9_3DMODEL_DIR}/Inductor_SMD.3dshapes/L_1008_2520Metric.step"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)
