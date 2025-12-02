@@ -1,0 +1,32 @@
+cargo-features = ['different-binary-name']
+
+[package]
+name = 'blinky'
+version = '0.1.0'
+edition = '2024'
+
+[dependencies]
+stm32g030 = { path = './stm32g030' }
+#konst = '*'
+
+[target.'cfg(not(target_arch = "arm"))'.dependencies]
+cortex-m = '*'
+
+[target.'cfg(target_arch = "arm")'.dependencies]
+cortex-m = {version = '*', features = ['inline-asm']}
+
+[[bin]]
+name = 'blinky'
+filename = 'blinky.elf'
+path = 'src/blinky.rs'
+
+[profile.dev]
+panic = 'abort'
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 's'
+debug = true
+panic = 'abort'
+strip = false

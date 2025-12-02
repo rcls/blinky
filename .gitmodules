@@ -1,0 +1,3 @@
+[submodule "stm32g030"]
+	path = stm32g030
+	url = git@github.com:rcls/pac-stm32g030.git

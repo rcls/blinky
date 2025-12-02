@@ -1,0 +1,12 @@
+\#*
+__pycache__/
+fp-info-cache
+*-backups/
+*.kicad_dru
+*.kicad_prl
+~*.lck
+#node_modules/
+out/
+#package*.json
+#py.typed
+target/
