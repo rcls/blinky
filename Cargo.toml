@@ -6,7 +6,7 @@ version = '0.1.0'
 edition = '2024'
 
 [dependencies]
-stm32g030 = { path = './stm32g030' }
+stm32g030 = {path = './stm32g030'}
 #konst = '*'
 
 [target.'cfg(not(target_arch = "arm"))'.dependencies]

@@ -3,4 +3,4 @@ b = 'build --release --target thumbv6m-none-eabi -Zbuild-std -Zbuild-std-feature
 
 [target.thumbv6m-none-eabi]
 rustflags = [
-  '-Ctarget-cpu=cortex-m0+', '-Clink-arg=-Tdevice.x', '-Cforce-frame-pointers=no', '-Zemit-stack-sizes']
+  '-Clink-arg=-Tdevice.x', '-Cforce-frame-pointers=no', '-Zemit-stack-sizes']

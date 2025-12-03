@@ -50,12 +50,12 @@ def read_cpl(IN: str, refs: set[str]) -> list[str]:
 
     for L in f:
         #print(L)
-        ref, val, package, posx, posy, rot, side = L
+        ref, val, package, posx, posy, rots, side = L
         #assert ref in refs, f'{ref}'
         if not ref in refs:
             continue
 
-        rot = float(rot)
+        rot = float(rots)
         for prefix, rotate in PREFIX_ROTATE:
             if package.startswith(prefix):
                 rot += rotate
