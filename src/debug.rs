@@ -1,14 +1,14 @@
 
 pub use stm32g030::USART1 as UART;
-pub use stm32g030::Interrupt::USART1 as UART_ISR;
+pub use stm32g030::Interrupt::USART1 as INTERRUPT;
 
 #[path = "../stm-common/debug_core.rs"]
 pub mod debug_core;
 
 use debug_core::{Debug, debug_isr};
 
-/// Flag to entirely turn off debugging.
-pub const NODEBUG: bool = crate::CONFIG.no_debug;
+/// Flag for global enable/disable of debugging.
+pub const ENABLE: bool = !crate::CONFIG.no_debug;
 
 /// State for debug logging.  We mark this as no-init and initialize the cells
 /// ourselves, to avoid putting the buffer into BSS.
@@ -16,6 +16,9 @@ pub const NODEBUG: bool = crate::CONFIG.no_debug;
 static DEBUG: Debug = Debug::default();
 
 const BAUD: u32 = 9600;
+
+pub struct DebugMarker;
+pub fn debug_marker() -> DebugMarker {DebugMarker}
 
 fn lazy_init() {
     if !crate::CONFIG.is_lazy_debug() {
@@ -31,7 +34,7 @@ fn lazy_init() {
 
 fn is_init() -> bool {
     let rcc = unsafe {&*stm32g030::RCC::ptr()};
-    !NODEBUG && rcc.APBENR2.read().USART1EN().bit()
+    ENABLE && rcc.APBENR2.read().USART1EN().bit()
 }
 
 pub fn init() {
@@ -58,6 +61,12 @@ pub fn init() {
     uart.BRR.write(|w| w.bits(BRR)); // FIXME
     // uart.PRESC.write(|w| w.bits(0));
     uart.CR1.write(|w| w.FIFOEN().set_bit().TE().set_bit().UE().set_bit());
+
+    if false {
+        crate::dbg!("");
+        crate::dbgln!();
+        crate::dbgln!("");
+    }
 }
 
 #[cfg(target_os = "none")]
@@ -74,7 +83,7 @@ impl crate::cpu::Config {
         self.lazy_debug() // .clocks(0, 1 << 20, 0)
     }
     pub const fn lazy_debug(&mut self) -> &mut Self {
-        self.isr(UART_ISR, debug_isr)
+        self.isr(INTERRUPT, debug_isr)
     }
     pub const fn no_debug(&mut self) -> &mut Self {
         self.no_debug = true;
@@ -90,7 +99,7 @@ impl crate::cpu::Config {
 #[cfg_attr(test, test)]
 fn check_vtors() {
     // FIXME use crate::link_assert;
-    if !NODEBUG {
+    if ENABLE {
         // FIXME link_assert! not assert!
-        assert!(crate::cpu::VECTORS.isr[UART_ISR as usize] == debug_isr);    }
+        assert!(crate::cpu::VECTORS.isr[INTERRUPT as usize] == debug_isr);    }
 }
