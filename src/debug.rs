@@ -2,6 +2,7 @@
 pub use stm32g030::USART1 as UART;
 pub use stm32g030::Interrupt::USART1 as UART_ISR;
 
+#[path = "../stm-common/debug_core.rs"]
 pub mod debug_core;
 
 use debug_core::{Debug, debug_isr};
@@ -26,6 +27,11 @@ fn lazy_init() {
     if !rcc.APBENR2.read().USART1EN().bit() {
         init();
     }
+}
+
+fn is_init() -> bool {
+    let rcc = unsafe {&*stm32g030::RCC::ptr()};
+    !NODEBUG && rcc.APBENR2.read().USART1EN().bit()
 }
 
 pub fn init() {
@@ -57,8 +63,8 @@ pub fn init() {
 #[cfg(target_os = "none")]
 #[panic_handler]
 fn ph(info: &core::panic::PanicInfo) -> ! {
-    dbgln!("{info}");
-    flush();
+    crate::dbgln!("{info}");
+    debug_core::flush();
     crate::cpu::reboot();
 }
 

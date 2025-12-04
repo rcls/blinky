@@ -16,6 +16,7 @@
 mod cpu;
 mod debug;
 mod leds;
+#[path = "../stm-common/vcell.rs"]
 mod vcell;
 
 pub const CONFIG: cpu::Config = *cpu::Config::new(16_000_000).debug();

@@ -14,7 +14,7 @@ PREFIX_ROTATE = [
     ('QFN10_TG5032CGN', -90),
     ('SOIC-', -90),
     ('SOT-', 180),
-    ('SOT-23-5', -90),
+    ('SOT-23-5', 90),
     ('SIL0008C', 180),
     ('Texas_S-PWSON', -90)]
 
