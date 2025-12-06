@@ -2,40 +2,44 @@
 pub use stm32g030::USART1 as UART;
 pub use stm32g030::Interrupt::USART1 as INTERRUPT;
 
-#[path = "../stm-common/debug_core.rs"]
-pub mod debug_core;
+use stm_common::{debug, link_assert};
+use debug::Debug;
 
-use debug_core::{Debug, debug_isr};
+use crate::{CONFIG, DEBUG_ENABLE};
 
-/// Flag for global enable/disable of debugging.
-pub const ENABLE: bool = !crate::CONFIG.no_debug;
+#[derive(Default)]
+pub struct DebugMeta;
+
+impl debug::Meta for DebugMeta {
+    const ENABLE: bool = DEBUG_ENABLE;
+    const INTERRUPT: u32 = INTERRUPT as u32;
+    fn uart() -> &'static debug::UART {unsafe{&*UART::PTR}}
+    fn debug() -> &'static Debug<Self> {&DEBUG}
+
+    fn lazy_init() {
+        let rcc = unsafe {&*stm32g030::RCC::ptr()};
+        if CONFIG.is_lazy_debug() && !rcc.APBENR2.read().USART1EN().bit() {
+            init();
+        }
+    }
+
+    fn is_init() -> bool {
+        let rcc = unsafe {&*stm32g030::RCC::ptr()};
+        !CONFIG.is_lazy_debug()
+            || DEBUG_ENABLE && rcc.APBENR2.read().USART1EN().bit()
+    }
+}
 
 /// State for debug logging.  We mark this as no-init and initialize the cells
 /// ourselves, to avoid putting the buffer into BSS.
 #[unsafe(link_section = ".noinit")]
-static DEBUG: Debug = Debug::default();
+static DEBUG: Debug<DebugMeta> = Default::default();
+
+fn debug_isr() {
+    DEBUG.isr();
+}
 
 const BAUD: u32 = 9600;
-
-pub struct DebugMarker;
-pub fn debug_marker() -> DebugMarker {DebugMarker}
-
-fn lazy_init() {
-    if !crate::CONFIG.is_lazy_debug() {
-        return;
-    }
-
-    // Lazy initialization.
-    let rcc = unsafe {&*stm32g030::RCC::ptr()};
-    if !rcc.APBENR2.read().USART1EN().bit() {
-        init();
-    }
-}
-
-fn is_init() -> bool {
-    let rcc = unsafe {&*stm32g030::RCC::ptr()};
-    ENABLE && rcc.APBENR2.read().USART1EN().bit()
-}
 
 pub fn init() {
     check_vtors();
@@ -55,7 +59,7 @@ pub fn init() {
     // Set-up the UART TX.  TODO - we should enable RX at some point.  The dbg*
     // macros will work after this.
 
-    const BRR: u32 = (crate::CONFIG.clk * 2 + BAUD) / 2 / BAUD;
+    const BRR: u32 = (CONFIG.clk * 2 + BAUD) / 2 / BAUD;
     const {assert!(BRR > 100)};
     const {assert!(BRR < 65536)};
     uart.BRR.write(|w| w.bits(BRR)); // FIXME
@@ -63,9 +67,9 @@ pub fn init() {
     uart.CR1.write(|w| w.FIFOEN().set_bit().TE().set_bit().UE().set_bit());
 
     if false {
-        crate::dbg!("");
-        crate::dbgln!();
-        crate::dbgln!("");
+        stm_common::dbg!("{}", 1);
+        stm_common::dbgln!();
+        stm_common::dbgln!("{}", 1);
     }
 }
 
@@ -73,7 +77,7 @@ pub fn init() {
 #[panic_handler]
 fn ph(info: &core::panic::PanicInfo) -> ! {
     crate::dbgln!("{info}");
-    debug_core::flush();
+    debug::flush();
     crate::cpu::reboot();
 }
 
@@ -98,8 +102,7 @@ impl crate::cpu::Config {
 #[inline(always)]
 #[cfg_attr(test, test)]
 fn check_vtors() {
-    // FIXME use crate::link_assert;
-    if ENABLE {
-        // FIXME link_assert! not assert!
-        assert!(crate::cpu::VECTORS.isr[INTERRUPT as usize] == debug_isr);    }
+    if DEBUG_ENABLE {
+        link_assert!(crate::cpu::VECTORS.isr[INTERRUPT as usize] == debug_isr);
+    }
 }

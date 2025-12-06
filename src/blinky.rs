@@ -16,10 +16,18 @@
 mod cpu;
 mod debug;
 mod leds;
-#[path = "../stm-common/vcell.rs"]
-mod vcell;
 
-pub const CONFIG: cpu::Config = *cpu::Config::new(16_000_000).debug();
+/// Flag for global enable/disable of debugging.
+const DEBUG_ENABLE: bool = !CONFIG.no_debug;
+
+/// Entry point used by the dbg! and dbgln! macros.
+fn debug_fmt(fmt: core::fmt::Arguments) {
+    if DEBUG_ENABLE {
+        stm_common::debug::debug_fmt::<debug::DebugMeta>(fmt);
+    }
+}
+
+const CONFIG: cpu::Config = *cpu::Config::new(16_000_000).debug();
 
 pub fn main() -> ! {
     let rcc  = unsafe {&*stm32g030::RCC::ptr()};

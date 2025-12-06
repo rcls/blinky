@@ -1,3 +1,5 @@
+use stm_common::{interrupt::VectorTable, utils::barrier};
+
 use crate::CONFIG;
 
 pub fn init() {
@@ -39,14 +41,14 @@ pub fn init() {
 #[derive_const(Default)]
 pub struct Config {
     pub clk: u32,
-    pub vectors: VectorTable,
+    pub vectors: VectorTable<InterruptMeta>,
     /// Turn off debug...
     pub no_debug: bool,
 }
 
 #[used]
 #[unsafe(link_section = ".vectors")]
-pub static VECTORS: VectorTable = CONFIG.vectors;
+pub static VECTORS: VectorTable<InterruptMeta> = CONFIG.vectors;
 
 unsafe extern "C" {
     static mut __bss_start: u8;
@@ -74,37 +76,12 @@ impl Config {
 }
 
 #[derive(Clone, Copy)]
-#[repr(C)]
-pub struct VectorTable {
-    pub stack     : *const u8,
-    pub reset     : fn() -> !,
-    pub nmi       : fn(),
-    pub hard_fault: fn(),
-    pub reserved1 : [u32; 7],
-    pub svcall    : fn(),
-    pub reserved2 : [u32; 2],
-    pub pendsv    : fn(),
-    pub systick   : fn(),
-    pub isr       : [fn(); 32],
-}
+pub struct InterruptMeta;
 
-/// !@#$!@$#
-unsafe impl Sync for VectorTable {}
-
-impl const Default for VectorTable {
-    fn default() -> Self {
-        VectorTable{
-            stack     : &raw const end_of_ram,
-            reset     : crate::main,
-            nmi       : bugger,
-            hard_fault: bugger,
-            reserved1 : [0; 7],
-            svcall    : bugger,
-            reserved2 : [0; 2],
-            pendsv    : bugger,
-            systick   : bugger,
-            isr       : [bugger; 32]}
-    }
+impl stm_common::interrupt::Meta for InterruptMeta {
+    fn main() -> ! {crate::main()}
+    fn bugger() {bugger()}
+    const INITIAL_SP: *const u8 = &raw const end_of_ram;
 }
 
 unsafe extern "C" {
@@ -123,33 +100,10 @@ fn bugger() {
         tamp.BKPR[8].write(|w| w.bits(pc));
     }
     else {
-        crate::dbgln!("Crash @ {pc:#010x}");
-        crate::debug::debug_core::flush();
+        stm_common::dbgln!("Crash @ {pc:#010x}");
+        stm_common::debug::flush::<crate::debug::DebugMeta>();
     }
-    reboot();
-}
-
-#[inline(always)]
-#[allow(non_snake_case)]
-pub fn WFE() {
-    if cfg!(target_arch = "arm") {
-        unsafe {
-            core::arch::asm!("wfe", options(nomem, preserves_flags, nostack))};
-    }
-    else {
-        panic!("wfe!");
-    }
-}
-
-pub fn reboot() -> ! {
-    loop {
-        unsafe {(*cortex_m::peripheral::SCB::PTR).aircr.write(0x05fa0004)};
-    }
-}
-
-#[inline(always)]
-pub fn barrier() {
-    core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
+    stm_common::utils::reboot();
 }
 
 #[inline(always)]
