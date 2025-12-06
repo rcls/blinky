@@ -76,9 +76,9 @@ pub fn init() {
 #[cfg(target_os = "none")]
 #[panic_handler]
 fn ph(info: &core::panic::PanicInfo) -> ! {
-    crate::dbgln!("{info}");
-    debug::flush();
-    crate::cpu::reboot();
+    stm_common::dbgln!("{info}");
+    debug::flush::<DebugMeta>();
+    stm_common::utils::reboot();
 }
 
 #[allow(dead_code)]
