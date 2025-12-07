@@ -1,33 +1,35 @@
 
-pub use stm32g030::USART1 as UART;
 pub use stm32g030::Interrupt::USART1 as INTERRUPT;
 
-use stm_common::{debug, link_assert};
-use debug::Debug;
+use stm_common::{debug,  link_assert};
+use debug::{Debug, Meta};
 
 use crate::{CONFIG, DEBUG_ENABLE};
 
-#[derive(Default)]
+#[derive_const(Default)]
 pub struct DebugMeta;
 
-impl debug::Meta for DebugMeta {
-    const ENABLE: bool = DEBUG_ENABLE;
-    const INTERRUPT: u32 = INTERRUPT as u32;
-    fn uart() -> &'static debug::UART {unsafe{&*UART::PTR}}
+impl Meta for DebugMeta {
     fn debug() -> &'static Debug<Self> {&DEBUG}
 
-    fn lazy_init() {
+    fn uart(&self) -> &'static debug::UART {unsafe{&*stm32g030::USART1::PTR}}
+
+    fn lazy_init(&self) {
         let rcc = unsafe {&*stm32g030::RCC::ptr()};
         if CONFIG.is_lazy_debug() && !rcc.APBENR2.read().USART1EN().bit() {
             init();
         }
     }
 
-    fn is_init() -> bool {
+    fn is_init(&self) -> bool {
         let rcc = unsafe {&*stm32g030::RCC::ptr()};
         !CONFIG.is_lazy_debug()
             || DEBUG_ENABLE && rcc.APBENR2.read().USART1EN().bit()
     }
+
+    fn interrupt(&self) -> u32 {INTERRUPT as u32}
+
+    const ENABLE: bool = DEBUG_ENABLE;
 }
 
 /// State for debug logging.  We mark this as no-init and initialize the cells
@@ -45,7 +47,7 @@ pub fn init() {
     check_vtors();
     let gpioa = unsafe {&*stm32g030::GPIOA::ptr()};
     let rcc   = unsafe {&*stm32g030::RCC::ptr()};
-    let uart  = unsafe {&*UART::ptr()};
+    let uart = DebugMeta.uart();
 
     rcc.APBENR2.modify(|_, w| w.USART1EN().set_bit());
 
