@@ -38,17 +38,16 @@ pub fn init() {
 }
 
 #[derive(Clone, Copy)]
-#[derive_const(Default)]
 pub struct Config {
     pub clk: u32,
-    pub vectors: VectorTable<InterruptMeta>,
     /// Turn off debug...
     pub no_debug: bool,
+    pub vectors: VectorTable,
 }
 
 #[used]
 #[unsafe(link_section = ".vectors")]
-pub static VECTORS: VectorTable<InterruptMeta> = CONFIG.vectors;
+pub static VECTORS: VectorTable = CONFIG.vectors;
 
 unsafe extern "C" {
     static mut __bss_start: u8;
@@ -64,7 +63,9 @@ static end_of_ram: u8 = 0;
 impl Config {
     pub const fn new(clk: u32) -> Config {
         Config {
-            clk, .. Config::default()
+            clk, no_debug: false,
+            vectors: VectorTable::new(
+                    &raw const end_of_ram, crate::main, bugger),
         }
     }
     pub const fn isr(&mut self,
@@ -73,15 +74,6 @@ impl Config {
         // self.interrupts |= 1 << isr as u32;
         self
     }
-}
-
-#[derive(Clone, Copy)]
-pub struct InterruptMeta;
-
-impl stm_common::interrupt::Meta for InterruptMeta {
-    fn main() -> ! {crate::main()}
-    fn bugger() {bugger()}
-    const INITIAL_SP: *const u8 = &raw const end_of_ram;
 }
 
 unsafe extern "C" {
@@ -109,21 +101,4 @@ fn bugger() {
 #[inline(always)]
 pub fn nothing() {
     unsafe {core::arch::asm!("", options(nomem))}
-}
-
-pub mod interrupt {
-    // We don't use disabling interrupts to transfer ownership, so no need for
-    // the enable to be unsafe.
-    #[cfg(target_arch = "arm")]
-    #[allow(unused)]
-    pub fn enable_all() {unsafe{cortex_m::interrupt::enable()}}
-    #[cfg(target_arch = "arm")]
-    #[allow(unused)]
-    pub fn disable_all() {cortex_m::interrupt::disable()}
-    #[cfg(not(target_arch = "arm"))]
-    #[allow(unused)]
-    pub fn enable_all() { }
-    #[cfg(not(target_arch = "arm"))]
-    #[allow(unused)]
-    pub fn disable_all() { }
 }

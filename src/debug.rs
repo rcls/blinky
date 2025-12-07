@@ -1,7 +1,7 @@
 
 pub use stm32g030::Interrupt::USART1 as INTERRUPT;
 
-use stm_common::{debug,  link_assert};
+use stm_common::{debug, interrupt, link_assert};
 use debug::{Debug, Meta};
 
 use crate::{CONFIG, DEBUG_ENABLE};
@@ -67,6 +67,8 @@ pub fn init() {
     uart.BRR.write(|w| w.bits(BRR)); // FIXME
     // uart.PRESC.write(|w| w.bits(0));
     uart.CR1.write(|w| w.FIFOEN().set_bit().TE().set_bit().UE().set_bit());
+
+    interrupt::enable(INTERRUPT);
 
     if false {
         stm_common::dbg!("{}", 1);
