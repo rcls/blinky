@@ -1,18 +1,46 @@
 
-const A: u8 = 0;
-const B: u8 = 64;
-const C: u8 = 128;
-const D: u8 = 192;
+
+pub const _: () = {let _ = &COLUMNS;};
+
+pub const COLUMNS: [[u64; 64]; 6] = gen_columns();
+
+const fn gen_columns() -> [[u64; 64]; 6] {
+    let mut value = [[0; _]; _];
+    let mut column = 0;
+    while column < 6 {
+        let mut bits = 0;
+        while bits < 64 {
+            let val = &mut value[column][bits];
+            let mut row = 0;
+            while row < 6 {
+                // The LED drive is negative logic.
+                if bits & (1 << row) == 0 {
+                    *val |= 1 << LEDS[column + row * 6];
+                }
+                row += 1;
+            }
+            bits += 1;
+        }
+        column += 1;
+    }
+    value
+}
+
+/// Bit mask of LED GPIOs.  One entry per-port, successive bits are LEDs.
+pub const PORT_BITS: [u32; 4] = PORT_STUFF.0;
+/// Like PORT_BITS, except only even numbered bits are used.
+pub const PORT_BIT2: [u32; 4] = PORT_STUFF.1;
+/// Like PORT_BITS, except only every fourth bit is used.
+pub const _PORT_BIT4: [[u32; 2]; 4] = PORT_STUFF.2;
 
 /// Return GPIOA ..= GPIOB based on the top two bits of n.
 pub fn gpio(n: u8) -> &'static stm32g030::GPIOB {
-    let address = 0x5000_0000 + 0x400 * (n >> 6) as usize;
+    let address = 0x5000_0000 + 0x400 * (n >> 4) as usize;
     unsafe {&* (address as *const stm32g030::GPIOB)}
 }
 
-#[inline(never)]
 pub const fn bit(n: u8) -> u32 {
-    1 << (n & 63)
+    1 << n % 16
 }
 
 pub const PORT_STUFF: ([u32; 4], [u32; 4], [[u32; 2]; 4]) = {
@@ -22,17 +50,37 @@ pub const PORT_STUFF: ([u32; 4], [u32; 4], [[u32; 2]; 4]) = {
     let mut i = 0;
     while i < LEDS.len() {
         let l = LEDS[i] as usize;
-        mask[l / 64] |= 1 << l % 16;
-        bit2[l / 64] |= 1 << l % 16 * 2;
-        bit4[l / 64][l % 16 / 8] |= 1 << l % 8 * 2;
+        mask[l / 16] |= 1 << l % 16;
+        bit2[l / 16] |= 1 << l % 16 * 2;
+        bit4[l / 16][l % 16 / 8] |= 1 << l % 8 * 2;
         i += 1;
     }
     (mask, bit2, bit4)
 };
 
-pub const PORT_BITS: [u32; 4] = PORT_STUFF.0;
-pub const PORT_BIT2: [u32; 4] = PORT_STUFF.1;
-// pub const PORT_BIT4: [[u32; 2]; 4] = PORT_STUFF.2;
+pub const LED_EVEN: u64 = LED_EVEN_ODD.0;
+pub const LED_ODD : u64 = LED_EVEN_ODD.1;
+pub const LED_ALL : u64 = LED_EVEN | LED_ODD;
+
+const LED_EVEN_ODD: (u64, u64) = {
+    let (mut a, mut b) = (0, 0);
+    let mut i = 0;
+    while i < 6 {
+        let mut j = 0;
+        while j < 6 {
+            (a, b) = (b, a | 1 << LEDS[i * 6 + j]);
+            j += 1;
+        }
+        (a, b) = (b, a);
+        i += 1;
+    }
+    (a, b)
+};
+
+const A: u8 = 0;
+const B: u8 = 16;
+const C: u8 = 32;
+const D: u8 = 48;
 
 pub static LEDS: [u8; 36] = [
     B +  6, B +  5, B + 4, B +  3, D +  3, D +  2,
@@ -63,4 +111,11 @@ fn unique() {
     for i in 1 .. leds.len() {
         assert_ne!(leds[i], leds[i - 1]);
     }
+}
+
+#[test]
+fn bit_counts() {
+    assert_eq!(LED_ALL .count_ones(), 36);
+    assert_eq!(LED_ODD .count_ones(), 18);
+    assert_eq!(LED_EVEN.count_ones(), 18);
 }
