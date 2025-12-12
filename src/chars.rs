@@ -6,7 +6,7 @@ pub type Picture = [&'static str; 6];
 
 pub const NUM_CHARS: usize = PICTURES.len();
 
-const COLUMNS: [u64; NUM_CHARS] = {
+pub const COLUMNS: [u64; NUM_CHARS] = {
     let mut value = [0; _];
     let mut i = 0;
     while i < NUM_CHARS {
@@ -37,9 +37,9 @@ const fn parse(p: &Picture) -> u64 {
     columns
 }
 
-const fn map_str<const N: usize>(s: &[u8; N]) -> [u8; N] {
+pub const fn map_str<const N: usize>(s: &[u8; N]) -> [u8; N] {
     let mut result = [0; _];
-    let i = 0;
+    let mut i = 0;
     while i < s.len() {
         let c = s[i];
         let mut low = 0;
@@ -55,6 +55,7 @@ const fn map_str<const N: usize>(s: &[u8; N]) -> [u8; N] {
         }
         assert!(CHARS[low] == c);
         result[i] = low as u8;
+        i += 1;
     }
     result
 }

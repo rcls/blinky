@@ -5,10 +5,10 @@
 #![allow(internal_features)]
 // I value sane syntax over appeasing the Rust Gods.
 #![allow(unpredictable_function_pointer_comparisons)]
+// We do lots of const.
 #![feature(derive_const)]
 #![feature(const_clone, const_cmp, const_default, const_index)]
-#![feature(const_slice_make_iter)]
-#![feature(const_trait_impl)]
+#![feature(const_slice_make_iter, const_trait_impl)]
 // For getting that Future into a static.
 #![feature(impl_trait_in_assoc_type)]
 // Convenience for dbgln! implementation.
@@ -17,14 +17,15 @@
 #![feature(link_llvm_intrinsics)]
 #![feature(never_type)]
 
-use core::task;
+#![feature(const_async_blocks)]
 
-use stm_common::vcell::UCell;
+use stm_common::{dbgln, vcell::UCell};
 
 mod cpu;
 mod chars;
 mod debug;
 mod leds;
+mod marque;
 mod pendsv;
 mod pulse;
 
@@ -39,35 +40,57 @@ fn debug_fmt(fmt: core::fmt::Arguments) {
 }
 
 const CONFIG: cpu::Config =
-    *cpu::Config::new(16_000_000).debug().pendsv().pulse();
+    *cpu::Config::new(250_000).no_debug().pendsv().pulse();
 
 /// We really work hard to get at the type of our future...
-static GO: UCell<Option<<() as SomeThing>::Thing>> = UCell::new(None);
+static APP: UCell<<Start as Thing>::Thing> = UCell::new(Start.thing());
+
+struct Start;
 
 /// Hack to extract an unnamed type.
-trait SomeThing {
+const trait Thing {
     type Thing;
     fn thing(&self) -> Self::Thing;
 }
 
-impl SomeThing for () {
+const impl Thing for Start {
     type Thing = impl Future<Output = !>;
-    fn thing(&self) -> Self::Thing {dummy()}
+    fn thing(&self) -> Self::Thing {start()}
 }
 
-async fn dummy() -> ! {
-    loop {
-        pendsv::sleep(1000).await;
+/// Returns the future for running the asynchronous application code.
+pub const fn start() -> impl Future<Output = !> {
+    async {
+        pendsv::sleep(500).await;
+        let mut display = marque::Display::default();
+        loop {
+            stm_common::dbgln!("Async task is running :-)");
+            pendsv::sleep(100).await;
+
+            const STR: &[u8] = &chars::map_str(b"MERRY CHRISTMAS");
+            display.marque_string(STR, 10).await;
+        }
     }
 }
 
 pub fn main() -> ! {
-    let rcc  = unsafe {&*stm32g030::RCC::ptr()};
-    rcc.IOPENR.write(|w| w.bits(0x0f));
+    let rcc  = unsafe {&*stm32g030::RCC::PTR};
 
     cpu::init();
 
-    debug::init();
+    rcc.IOPENR.write(
+        |w|w.GPIOAEN().set_bit().GPIOBEN().set_bit().GPIOCEN().set_bit()
+            .GPIODEN().set_bit().GPIOFEN().set_bit());
+
+    if CONFIG.is_lazy_debug() || CONFIG.no_debug {
+        let gpioa = unsafe {&*stm32g030::GPIOA::PTR};
+        // gpioa.OTYPER.modify(|_, w| w.OT9().set_bit());
+        gpioa.BSRR.write(|w| w.BS9().set_bit());
+        gpioa.MODER.write(|w| w.MODER9().bits(1));
+    }
+    else {
+        debug::init();
+    }
 
     for i in 0 .. 4 {
         let gpio = leds::gpio(i as u8);
@@ -78,22 +101,14 @@ pub fn main() -> ! {
         gpio.MODER.modify(|r, w| w.bits(r.bits() & !(bit2 * 2) | bit2));
     }
 
-    let waker = unsafe {task::Waker::from_raw(pendsv::raw_waker())};
-    let mut context = task::Context::from_waker(&waker);
+    // PF1 is the feedback from the PSU.
+    let gpiof = unsafe {&*stm32g030::GPIOF::PTR};
+    gpiof.MODER.modify(|_, w| w.MODER1().bits(0));
 
-    let go = unsafe{GO.as_mut()}.insert(().thing());
-    let core::task::Poll::Pending
-        = core::pin::Pin::static_mut(go).poll(&mut context);
+    pendsv::init();
+    pulse::init();
 
     loop {
-        for led in leds::LEDS {
-            let gpio = leds::gpio(led);
-            let bit = leds::bit(led);
-            gpio.BRR.write(|w| w.bits(bit));
-            for _ in 0 .. CONFIG.clk / 36 {
-                cpu::nothing();
-            }
-            gpio.BSRR.write(|w| w.bits(bit));
-        }
+        stm_common::utils::WFE();
     }
 }

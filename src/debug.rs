@@ -4,7 +4,7 @@ pub use stm32g030::Interrupt::USART1 as INTERRUPT;
 use stm_common::{debug, interrupt, link_assert};
 use debug::{Debug, Meta};
 
-use crate::{CONFIG, DEBUG_ENABLE};
+use crate::{CONFIG, DEBUG_ENABLE, cpu::PRIO_DEBUG};
 
 #[derive_const(Default)]
 pub struct DebugMeta;
@@ -55,20 +55,20 @@ pub fn init() {
     DEBUG.r.write(0);
 
     // Configure UART lines.
-    gpioa.AFRH.modify(|_, w| w.AFSEL9().bits(8)); // FIXME.
+    gpioa.AFRH.modify(|_, w| w.AFSEL9().bits(1));
     gpioa.MODER.modify(|_, w| w.MODER9().bits(2));
 
     // Set-up the UART TX.  TODO - we should enable RX at some point.  The dbg*
     // macros will work after this.
 
-    const BRR: u32 = (CONFIG.clk * 2 + BAUD) / 2 / BAUD;
-    const {assert!(BRR > 100)};
+    const BRR: u32 = (CONFIG.clk + BAUD / 2) / BAUD;
+    const {assert!(BRR > 10)};
     const {assert!(BRR < 65536)};
     uart.BRR.write(|w| w.bits(BRR)); // FIXME
     // uart.PRESC.write(|w| w.bits(0));
     uart.CR1.write(|w| w.FIFOEN().set_bit().TE().set_bit().UE().set_bit());
 
-    interrupt::enable(INTERRUPT);
+    interrupt::enable_priority(INTERRUPT, PRIO_DEBUG);
 
     if false {
         stm_common::dbg!("{}", 1);

@@ -1,54 +1,57 @@
-use stm_common::vcell::{UCell, VCell};
+use stm_common::vcell::{SCell, UCell, VCell};
 
 use core::pin::Pin;
-use core::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+use core::task::{Context, Poll, Waker};
 
 static PENDSV: UCell<Pendsv> = UCell::default();
 
 static COUNT: VCell<i32> = VCell::new(0);
 
-static VTABLE: RawWakerVTable = RawWakerVTable::new(
-    |_| raw_waker(), |_| wake(), |_| wake(), |_|());
+static CONTEXT: SCell<Context> = SCell::new(Context::from_waker(Waker::noop()));
 
 #[derive_const(Default)]
 struct Pendsv {
     alloc: i32,
-    waker: Option<Waker>,
 }
 
 struct PendSVFuture {
-    wakeup_count: i32,
+    wakeup_at: i32,
 }
 
 impl Future for PendSVFuture {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
+    fn poll(self: Pin<&mut Self>, _: &mut Context<'_>)
             -> Poll<Self::Output> {
-        if COUNT.read().wrapping_sub(self.wakeup_count) >= 0 {
+        if COUNT.read().wrapping_sub(self.wakeup_at) >= 0 {
             Poll::Ready(())
         }
         else {
-            unsafe {PENDSV.as_mut()}.waker = Some(cx.waker().clone());
             Poll::Pending
         }
     }
 }
 
+pub fn init() {
+    // We use the PENDSV exception to dispatch some work at lower priority.
+    let scb = unsafe {&*cortex_m::peripheral::SCB::PTR};
+    let pendsv_prio = &scb.shpr[1];
+    // Cortex-M crate has two different ideas of what the SHPR is, make sure we
+    // are built with the correct one.
+    stm_common::link_assert!(pendsv_prio as *const _ as usize == 0xe000ed20);
+    #[cfg(target_os = "none")]
+    unsafe {pendsv_prio.write(crate::cpu::PRIO_APP as u32 * 65536)};
+}
+
 pub fn sleep(ticks: u32) -> impl Future {
     let pendsv = unsafe {PENDSV.as_mut()};
     pendsv.alloc = pendsv.alloc.wrapping_add_unsigned(ticks);
-    PendSVFuture{wakeup_count: pendsv.alloc}
-}
-
-fn wake() {
-    if let Some(w) = unsafe {PENDSV.as_mut()}.waker.take() {
-        w.wake();
-    }
+    PendSVFuture{wakeup_at: pendsv.alloc}
 }
 
 fn pendsv_handler() {
-    wake();
+    let go = Pin::static_mut(unsafe {super::APP.as_mut()});
+    let Poll::Pending = go.poll(unsafe {CONTEXT.as_mut()});
 }
 
 pub fn trigger() {
@@ -56,13 +59,14 @@ pub fn trigger() {
     cortex_m::peripheral::SCB::set_pendsv();
 }
 
-pub const fn raw_waker() -> RawWaker {
-    RawWaker::new(core::ptr::null(), &VTABLE)
-}
-
 impl crate::cpu::Config {
     pub const fn pendsv(&mut self) -> &mut Self {
         self.vectors.pendsv = pendsv_handler;
         self
     }
+}
+
+#[test]
+fn check_isr() {
+    assert!(crate::cpu::VECTORS.pendsv == pendsv_handler);
 }

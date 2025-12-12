@@ -2,6 +2,12 @@ use stm_common::{interrupt::VectorTable, utils::barrier};
 
 use crate::CONFIG;
 
+/// The application in the pendsv handler gets run at lower priority.
+#[cfg(target_os = "none")]
+pub const PRIO_APP: u8 = 0x80;
+
+pub const PRIO_DEBUG: u8 = 0x40;
+
 pub fn init() {
     let pwr = unsafe {&*stm32g030::PWR::ptr()};
     let rcc = unsafe {&*stm32g030::RCC::ptr()};
@@ -87,18 +93,7 @@ fn bugger() {
     // bytes to form the frame.
     let pcp = fp.wrapping_add(0x20);
     let pc = unsafe {*(pcp as *const u32)};
-    if false { // FIXME crate::CONFIG.low_power {
-        let tamp = unsafe {&*stm32g030::TAMP::ptr()};
-        tamp.BKPR[8].write(|w| w.bits(pc));
-    }
-    else {
-        stm_common::dbgln!("Crash @ {pc:#010x}");
-        stm_common::debug::flush::<crate::debug::DebugMeta>();
-    }
+    stm_common::dbgln!("Crash @ {pc:#010x}");
+    stm_common::debug::flush::<crate::debug::DebugMeta>();
     stm_common::utils::reboot();
-}
-
-#[inline(always)]
-pub fn nothing() {
-    unsafe {core::arch::asm!("", options(nomem))}
 }
