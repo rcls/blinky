@@ -6,7 +6,7 @@ pub type Picture = [&'static str; 6];
 
 pub const NUM_CHARS: usize = PICTURES.len();
 
-pub const COLUMNS: [u64; NUM_CHARS] = {
+pub static COLUMNS: [u64; NUM_CHARS] = {
     let mut value = [0; _];
     let mut i = 0;
     while i < NUM_CHARS {

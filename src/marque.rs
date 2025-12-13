@@ -11,9 +11,9 @@ impl Display {
     pub async fn marque_display(&mut self, mut new: u64, wait: u32) {
         for _ in 0 .. 6 {
             pendsv::sleep(wait).await;
-            self.current |= (new & 255) << 36;
-            self.current >>= 8;
-            new >>= 8;
+            self.current += (new & 255) << 48;
+            self.current = pulse::shr8(self.current);
+            new = pulse::shr8(new);
             pulse::set_display(self.current);
         }
     }

@@ -3,8 +3,9 @@ use stm_common::{interrupt::VectorTable, utils::barrier};
 use crate::CONFIG;
 
 /// The application in the pendsv handler gets run at lower priority.
-#[cfg(target_os = "none")]
 pub const PRIO_APP: u8 = 0x80;
+
+pub const PRIO_ADC: u8 = PRIO_APP;
 
 pub const PRIO_DEBUG: u8 = 0x40;
 

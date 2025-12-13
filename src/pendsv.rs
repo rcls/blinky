@@ -9,6 +9,9 @@ static COUNT: VCell<i32> = VCell::new(0);
 
 static CONTEXT: SCell<Context> = SCell::new(Context::from_waker(Waker::noop()));
 
+/// Number of wake-ups per second.
+pub const SECOND: u32 = 100;
+
 #[derive_const(Default)]
 struct Pendsv {
     alloc: i32,
@@ -55,8 +58,16 @@ fn pendsv_handler() {
 }
 
 pub fn trigger() {
-    COUNT.write(COUNT.read().wrapping_add(1));
+    let count = COUNT.read();
+    let do_adc = (count & 7) == 0;
+    if do_adc {
+        crate::adc::power_up();
+    }
+    COUNT.write(count.wrapping_add(1));
     cortex_m::peripheral::SCB::set_pendsv();
+    if do_adc {
+        crate::adc::start();
+    }
 }
 
 impl crate::cpu::Config {

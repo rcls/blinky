@@ -19,10 +19,13 @@
 
 #![feature(const_async_blocks)]
 
-use stm_common::{dbgln, vcell::UCell};
+use stm_common::vcell::UCell;
 
-mod cpu;
+use crate::pendsv::SECOND;
+
+mod adc;
 mod chars;
+mod cpu;
 mod debug;
 mod leds;
 mod marque;
@@ -32,15 +35,15 @@ mod pulse;
 /// Flag for global enable/disable of debugging.
 const DEBUG_ENABLE: bool = !CONFIG.no_debug;
 
+const CONFIG: cpu::Config =
+    *cpu::Config::new(250_000).adc().lazy_debug().pendsv().pulse();
+
 /// Entry point used by the dbg! and dbgln! macros.
 fn debug_fmt(fmt: core::fmt::Arguments) {
     if DEBUG_ENABLE {
         stm_common::debug::debug_fmt::<debug::DebugMeta>(fmt);
     }
 }
-
-const CONFIG: cpu::Config =
-    *cpu::Config::new(250_000).no_debug().pendsv().pulse();
 
 /// We really work hard to get at the type of our future...
 static APP: UCell<<Start as Thing>::Thing> = UCell::new(Start.thing());
@@ -59,21 +62,22 @@ const impl Thing for Start {
 }
 
 /// Returns the future for running the asynchronous application code.
-pub const fn start() -> impl Future<Output = !> {
+const fn start() -> impl Future<Output = !> {
     async {
-        pendsv::sleep(500).await;
+        //pendsv::sleep(500).await;
         let mut display = marque::Display::default();
         loop {
             stm_common::dbgln!("Async task is running :-)");
-            pendsv::sleep(100).await;
 
-            const STR: &[u8] = &chars::map_str(b"MERRY CHRISTMAS");
-            display.marque_string(STR, 10).await;
+            pendsv::sleep(SECOND).await;
+
+            const STR: &[u8] = &chars::map_str(b"MERRY CHRISTMAS ");
+            display.marque_string(STR, SECOND / 5).await;
         }
     }
 }
 
-pub fn main() -> ! {
+fn main() -> ! {
     let rcc  = unsafe {&*stm32g030::RCC::PTR};
 
     cpu::init();
@@ -97,7 +101,6 @@ pub fn main() -> ! {
         let bits = leds::PORT_BITS[i];
         let bit2 = leds::PORT_BIT2[i];
         gpio.BSRR.write(|w| w.bits(bits));
-        gpio.OTYPER.write(|w| w.bits(bits));
         gpio.MODER.modify(|r, w| w.bits(r.bits() & !(bit2 * 2) | bit2));
     }
 
