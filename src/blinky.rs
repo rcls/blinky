@@ -34,7 +34,7 @@ mod pulse;
 const DEBUG_ENABLE: bool = !CONFIG.no_debug;
 
 const CONFIG: cpu::Config =
-    *cpu::Config::new(250_000).adc().lazy_debug().pendsv().pulse();
+    *cpu::Config::new(250_000).adc().no_debug().pendsv().pulse();
 
 /// Entry point used by the dbg! and dbgln! macros.
 fn debug_fmt(fmt: core::fmt::Arguments) {

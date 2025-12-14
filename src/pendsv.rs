@@ -1,7 +1,8 @@
 use stm_common::vcell::{UCell, VCell};
 
-/// Number of wake-ups per second.  Note that the /8 is hardwired below...
-pub const SECOND: u32 = crate::pulse::RATE / 8;
+/// Number of application wake-ups per second.
+pub const SECOND: u32 = 5;
+pub const PWM_PER_TICK: u32 = crate::pulse::RATE / SECOND;
 
 /// Trigger count from PWM.
 static COUNT: VCell<i32> = VCell::new(0);
@@ -45,18 +46,19 @@ fn pendsv_handler() {
     while alloc.wrapping_sub(COUNT.read()) < 0 {
         *alloc += 1;
 
-        match *alloc & 7 {
-            0 => {
-                // Trigger the app in plenty of time for the next app. tick.
+        const {assert!(PWM_PER_TICK.is_power_of_two())};
+        match *alloc as u32 & (PWM_PER_TICK - 1) {
+            1 => {
+                // Trigger the app.
                 APP_COUNT.write(APP_COUNT.read().wrapping_add(1));
-            },
-
-            7 => {
+            }
+            0 => {
+                // Prep. for the next app tick.
                 crate::adc::power_up();
                 crate::pulse::apply_leds();
                 crate::adc::start();
-            },
-            _ => (),
+            }
+            _ => ()
         }
     }
 }
