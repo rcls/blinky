@@ -2,13 +2,14 @@ use stm_common::{interrupt::VectorTable, utils::barrier};
 
 use crate::CONFIG;
 
-/// The application in the pendsv handler gets run at lower priority.
-#[cfg(target_os = "none")]
-pub const PRIO_APP: u8 = 0xc0;
+/// Priority for the pendsv and ADC handling.
+pub const PRIO_PENDSV: u8 = 0x80;
 
-pub const PRIO_ADC: u8 = 0x80;
-
+/// Priority for the debug ISR.
 pub const PRIO_DEBUG: u8 = 0x40;
+
+/// Priority for the PWM ISR.
+pub const PRIO_PULSE: u8 = 0;
 
 pub fn init() {
     let pwr = unsafe {&*stm32g030::PWR::ptr()};

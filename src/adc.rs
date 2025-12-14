@@ -4,8 +4,7 @@ use stm32g030::Interrupt::ADC as INTERRUPT;
 pub const OVER3: u32 = 0;
 pub const UNDER3: u32 = 273;
 
-macro_rules! dbgln {($($tt: tt)*) => {if true {stm_common::dbgln!($($tt)*)}}
-}
+macro_rules! dbgln {($($tt: tt)*) => {if false {stm_common::dbgln!($($tt)*)}}}
 
 pub fn power_up() {
     let adc = unsafe {&*stm32g030::ADC::PTR};
@@ -23,6 +22,13 @@ pub fn power_up() {
 }
 
 pub fn start() {
+    if crate::CONFIG.clk > 250_000 {
+        // If we're running fast then waste some time waiting for the ADC
+        // power-up.
+        for _ in 0 .. crate::CONFIG.clk / 250_000 {
+            stm_common::utils::nothing();
+        }
+    }
     let adc = unsafe {&*stm32g030::ADC::PTR};
     adc.CCR.write(|w| w.VREFEN().set_bit());
     adc.CHSELR_0().write(|w| w.CHSEL13().set_bit());
@@ -32,7 +38,7 @@ pub fn start() {
     adc.CR.write(|w| w.ADVREGEN().set_bit().ADCAL().set_bit());
 
     // Enable the interrupt.
-    stm_common::interrupt::enable_priority(INTERRUPT, crate::cpu::PRIO_ADC);
+    stm_common::interrupt::enable_priority(INTERRUPT, crate::cpu::PRIO_PENDSV);
 }
 
 pub fn isr() {

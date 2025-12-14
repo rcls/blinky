@@ -1,4 +1,4 @@
-use crate::{chars, pendsv, pulse};
+use crate::{chars, pulse};
 
 #[derive_const(Default)]
 pub struct Display {
@@ -8,9 +8,9 @@ pub struct Display {
 impl Display {
     pub const fn _new(current: u64) -> Display {Display{current}}
 
-    pub async fn marque_display(&mut self, mut new: u64, wait: u32) {
+    pub fn marque_display(&mut self, mut new: u64, wait: u32) {
         for _ in 0 .. 6 {
-            pendsv::sleep(wait).await;
+            crate::pendsv::sleep(wait);
             self.current += (new & 255) << 48;
             self.current = pulse::shr8(self.current);
             new = pulse::shr8(new);
@@ -18,9 +18,9 @@ impl Display {
         }
     }
 
-    pub async fn marque_string(&mut self, s: &[u8], wait: u32) {
+    pub fn marque_string(&mut self, s: &[u8], wait: u32) {
         for &c in s {
-            self.marque_display(chars::COLUMNS[c as usize], wait).await;
+            self.marque_display(chars::COLUMNS[c as usize], wait);
         }
     }
 }

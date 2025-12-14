@@ -1,36 +1,15 @@
-use stm_common::vcell::{SCell, UCell, VCell};
+use stm_common::vcell::{UCell, VCell};
 
-use core::pin::Pin;
-use core::task::{Context, Poll, Waker};
+/// Number of wake-ups per second.  Note that the /8 is hardwired below...
+pub const SECOND: u32 = crate::pulse::RATE / 8;
 
-static PENDSV: UCell<Pendsv> = UCell::default();
-
+/// Trigger count from PWM.
 static COUNT: VCell<i32> = VCell::new(0);
 
-static CONTEXT: SCell<Context> = SCell::new(Context::from_waker(Waker::noop()));
+/// Application count (/8) on the trigger count.
+static APP_COUNT: VCell<i32> = VCell::new(0);
 
-#[derive_const(Default)]
-struct Pendsv {
-    alloc: i32,
-}
-
-struct PendSVFuture {
-    wakeup_at: i32,
-}
-
-impl Future for PendSVFuture {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, _: &mut Context<'_>)
-            -> Poll<Self::Output> {
-        if COUNT.read().wrapping_sub(self.wakeup_at) >= 0 {
-            Poll::Ready(())
-        }
-        else {
-            Poll::Pending
-        }
-    }
-}
+macro_rules! dbgln {($($tt: tt)*) => {if false {stm_common::dbgln!($($tt)*)}}}
 
 pub fn init() {
     // We use the PENDSV exception to dispatch some work at lower priority.
@@ -40,30 +19,45 @@ pub fn init() {
     // are built with the correct one.
     stm_common::link_assert!(pendsv_prio as *const _ as usize == 0xe000ed20);
     #[cfg(target_os = "none")]
-    unsafe {pendsv_prio.write(crate::cpu::PRIO_APP as u32 * 65536)};
-}
-
-pub fn sleep(ticks: u32) -> impl Future {
-    let pendsv = unsafe {PENDSV.as_mut()};
-    pendsv.alloc = pendsv.alloc.wrapping_add_unsigned(ticks);
-    PendSVFuture{wakeup_at: pendsv.alloc}
-}
-
-fn pendsv_handler() {
-    let go = Pin::static_mut(unsafe {super::APP.as_mut()});
-    let Poll::Pending = go.poll(unsafe {CONTEXT.as_mut()});
+    unsafe {pendsv_prio.write(crate::cpu::PRIO_PENDSV as u32 * 65536)};
 }
 
 pub fn trigger() {
-    let count = COUNT.read();
-    let do_adc = (count & 7) == 0;
-    if do_adc {
-        crate::adc::power_up();
-    }
-    COUNT.write(count.wrapping_add(1));
+    COUNT.write(COUNT.read().wrapping_add(1));
     cortex_m::peripheral::SCB::set_pendsv();
-    if do_adc {
-        crate::adc::start();
+}
+
+pub fn sleep(wait: u32) {
+    static ALLOC: UCell<i32> = UCell::new(0);
+    let target = ALLOC.wrapping_add(wait as i32);
+    unsafe {*ALLOC.as_mut() = target};
+    dbgln!("Sleep for {target}");
+    while APP_COUNT.read().wrapping_sub(target) < 0 {
+        stm_common::utils::WFE();
+    }
+    dbgln!("Wakes");
+}
+
+fn pendsv_handler() {
+    static ALLOC: UCell<i32> = UCell::new(0);
+    let alloc = unsafe {ALLOC.as_mut()};
+    // We loop just in case we miss a tick.  Or get a spurious wake-up.
+    while alloc.wrapping_sub(COUNT.read()) < 0 {
+        *alloc += 1;
+
+        match *alloc & 7 {
+            0 => {
+                // Trigger the app in plenty of time for the next app. tick.
+                APP_COUNT.write(APP_COUNT.read().wrapping_add(1));
+            },
+
+            7 => {
+                crate::adc::power_up();
+                crate::pulse::apply_leds();
+                crate::adc::start();
+            },
+            _ => (),
+        }
     }
 }
 

@@ -19,9 +19,7 @@
 
 #![feature(const_async_blocks)]
 
-use stm_common::vcell::UCell;
-
-use pulse::SECOND;
+use crate::pendsv::SECOND;
 
 mod adc;
 mod chars;
@@ -36,7 +34,7 @@ mod pulse;
 const DEBUG_ENABLE: bool = !CONFIG.no_debug;
 
 const CONFIG: cpu::Config =
-    *cpu::Config::new(250_000).adc().no_debug().pendsv().pulse();
+    *cpu::Config::new(250_000).adc().lazy_debug().pendsv().pulse();
 
 /// Entry point used by the dbg! and dbgln! macros.
 fn debug_fmt(fmt: core::fmt::Arguments) {
@@ -45,33 +43,13 @@ fn debug_fmt(fmt: core::fmt::Arguments) {
     }
 }
 
-/// We really work hard to get at the type of our future...
-static APP: UCell<<Start as Thing>::Thing> = UCell::new(Start.thing());
-
-struct Start;
-
-/// Hack to extract an unnamed type.
-const trait Thing {
-    type Thing;
-    fn thing(&self) -> Self::Thing;
-}
-
-const impl Thing for Start {
-    type Thing = impl Future<Output = !>;
-    fn thing(&self) -> Self::Thing {start()}
-}
-
 /// Returns the future for running the asynchronous application code.
-const fn start() -> impl Future<Output = !> {
-    async {
-        //pendsv::sleep(500).await;
-        let mut display = marque::Display::default();
-        loop {
-            pendsv::sleep(SECOND).await;
-
-            const STR: &[u8] = &chars::map_str(b"MERRY CHRISTMAS ");
-            display.marque_string(STR, SECOND / 5).await;
-        }
+fn run() -> ! {
+    let mut display = marque::Display::default();
+    loop {
+        pendsv::sleep(SECOND);
+        const STR: &[u8] = &chars::map_str(b"MERRY CHRISTMAS ");
+        display.marque_string(STR, SECOND / 5);
     }
 }
 
@@ -105,7 +83,5 @@ fn main() -> ! {
     pendsv::init();
     pulse::init();
 
-    loop {
-        stm_common::utils::WFE();
-    }
+    run();
 }

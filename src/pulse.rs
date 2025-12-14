@@ -5,20 +5,6 @@
 //! duty.  (Assumes 1MHz clock).
 //!
 //! Double buffering is used...
-//!
-//! RELOAD:
-//! # Turn off odd leds from the previous cycle.
-//! # Turn on even leds.
-//! # Trigger lower priority actions:
-//!   - compute next duty cycles and update double buffered registers
-//!   - trigger the per pulse state machines.
-//!
-//! CCR-EVEN-OFF:
-//! - Turn off even leds.
-//!
-//! CCR-OFF-ON
-//! - Turn on even leds (not that this may happen either before or after
-//!   EVEN-OFF).
 
 use stm_common::vcell::UCell;
 use stm32g030::TIM3 as TIM;
@@ -28,44 +14,37 @@ use crate::leds;
 
 mod text;
 
+// Number of PWM pulses per second.
+pub const RATE: u32 = 40;
 
-const PWM_PRESCALE: u32 = (crate::CONFIG.clk / 1000_000).max(1);
-const PWM_DIV: u32 = crate::CONFIG.clk / PWM_PRESCALE / 50;
+const PWM_PRESCALE: u32 = (crate::CONFIG.clk / 50_000).max(1);
+const PWM_DIV: u32 = crate::CONFIG.clk / PWM_PRESCALE / RATE;
+const _: () = assert!(PWM_PRESCALE <= 65536);
 const _: () = assert!(PWM_DIV <= 65536);
+const _: () = assert!(RATE * PWM_DIV * PWM_PRESCALE == crate::CONFIG.clk);
+const _: () = assert!(PWM_DIV >= 1000);
 
-/// Number of wake-ups per second.
-pub const SECOND: u32 = crate::CONFIG.clk / PWM_PRESCALE / PWM_DIV;
-
+/// Currently displaying LEDs.
 static LEDS: UCell<u64> = UCell::new(0);
 
-macro_rules! dbgln {
-    ($($tt: tt)*) => {if false {stm_common::dbgln!($($tt)*)}}
-}
+/// LEDs to display starting at next PWM cycle.
+static NEXT_LEDS: UCell<u64> = UCell::new(0);
+
+macro_rules! dbgln {($($tt: tt)*) => {if false {stm_common::dbgln!($($tt)*)}}}
 
 /// Set LEDs via the 4-GPIO bit mask.  `on` and `off` refer to the GPIO level,
 /// not the negative logic GPIO drive.  `on` takes precedence over `off`.
 fn set(on: u64, off: u64) {
-    let set1 = |i| {
+    fn set1(on: u64, off: u64, i: u8) {
         let on  = on  >> i * 16 & 0xffff;
         let off = off >> i * 16 & 0xffff;
         crate::leds::gpio(i).BSRR.write(
             |w| w.bits((off as u32) << 16 | on as u32));
-    };
-    set1(0);
-    set1(1);
-    set1(2);
-    set1(3);
-}
-
-fn reset(off: u64) {
-    let reset1 = |i| {
-        let off = off >> i * 16 & 0xffff;
-        crate::leds::gpio(i).BRR.write(|w| w.bits(off as u32));
-    };
-    reset1(0);
-    reset1(1);
-    reset1(2);
-    reset1(3);
+    }
+    set1(on, off, 0);
+    set1(on, off, 1);
+    set1(on, off, 2);
+    set1(on, off, 3);
 }
 
 pub fn init() {
@@ -83,12 +62,18 @@ pub fn init() {
     tim.CCER.write(|w| w.CC1E().set_bit().CC2E().set_bit());
     tim.CR1.write(|w| w.CEN().set_bit());
 
-    stm_common::interrupt::enable_priority(INTERRUPT, 0);
+    stm_common::interrupt::enable_priority(INTERRUPT, crate::cpu::PRIO_PULSE);
 }
 
 pub fn set_leds(leds: u64) {
     stm_common::interrupt::disable_all();
-    *unsafe {LEDS.as_mut()} = leds;
+    *unsafe {NEXT_LEDS.as_mut()} = leds;
+    stm_common::interrupt::enable_all();
+}
+
+pub fn apply_leds() {
+    stm_common::interrupt::disable_all();
+    *unsafe {LEDS.as_mut()} = *NEXT_LEDS;
     stm_common::interrupt::enable_all();
 }
 
@@ -118,7 +103,6 @@ pub fn set_display(display: u64) {
 /// Go from 50% duty at delta==0 to 2.5% duty at delta ≈ OVER3 + UNDER3.
 fn calc_duty(delta: u32) -> u32 {
     const MAX: u32 = crate::adc::OVER3 + crate::adc::UNDER3;
-    const {assert!(PWM_DIV >= 1000)};
     const RANGE: f64 = PWM_DIV as f64 * (0.5 - 0.025);
     const SCALE_F: f64 = RANGE * 65536.0 / MAX as f64;
     const SCALE: u32 = (SCALE_F + 0.5) as u32;
@@ -129,7 +113,7 @@ pub fn update_duty(delta: u32) {
     let tim = unsafe {&*TIM::PTR};
     let pwm16 = calc_duty(delta);
     tim.CCR1.write(|w| w.bits(pwm16));
-    tim.CCR2.write(|w| w.bits(PWM_DIV - pwm16));
+    tim.CCR2.write(|w| w.bits(2 * pwm16));
 }
 
 fn isr() {
@@ -137,19 +121,23 @@ fn isr() {
     let sr = tim.SR.read();
     tim.SR.write(|w| w.bits(!sr.bits()));
     // First, update the LEDs, we want low timing jitter on this.
-    let display = *LEDS;
-    if sr.UIF().bit() {
-        // Active evens asserted low, odds deasserted high.
-        set(leds::LED_ODD, display);
-        // FIXME - trigger the world!
-    }
-    if sr.CC1IF().bit() {
-        // Active evens deasserted high.
-        set(leds::LED_EVEN, 0);
-    }
-    if sr.CC2IF().bit() {
-        // Active odds asserted low.
-        reset(display & leds::LED_ODD);
+    let leds = *LEDS;
+    match sr.bits() & 7 {
+        1 | 5 => // UIF with or without CC2.
+            // Active evens asserted low, all others deasserted high.
+            set(leds::LED_EVEN & !leds | leds::LED_ODD, leds::LED_EVEN),
+        2 | 3 | 7 => // CC1 with or without UIF.
+            // Also includes UIF+CC1+CC2.  This probably means that the previous
+            // PWM cycle was near-full-duty (CC2 at end) and this PWM cycle is
+            // low (CC1 at start).
+            // Active odds asserted low.
+            set(leds::LED_ODD & !leds | leds::LED_EVEN, leds::LED_ODD),
+        4 | 6 => // CC2 with or without CC1.
+            // Everything deasserted high.
+            set(leds::LED_ODD | leds::LED_EVEN, 0),
+        0 => (), // Unexpected wake-up!
+        _ => stm_common::utils::unreachable(),
+
     }
     if sr.UIF().bit() {
         crate::pendsv::trigger();
