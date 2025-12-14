@@ -28,8 +28,18 @@ use crate::leds;
 
 mod text;
 
+
+const PWM_PRESCALE: u32 = (crate::CONFIG.clk / 1000_000).max(1);
+const PWM_DIV: u32 = crate::CONFIG.clk / PWM_PRESCALE / 50;
+const _: () = assert!(PWM_DIV <= 65536);
+
+/// Number of wake-ups per second.
+pub const SECOND: u32 = crate::CONFIG.clk / PWM_PRESCALE / PWM_DIV;
+
+static LEDS: UCell<u64> = UCell::new(0);
+
 macro_rules! dbgln {
-    ($($tt: tt)*) => {if true {stm_common::dbgln!($($tt)*)}}
+    ($($tt: tt)*) => {if false {stm_common::dbgln!($($tt)*)}}
 }
 
 /// Set LEDs via the 4-GPIO bit mask.  `on` and `off` refer to the GPIO level,
@@ -58,12 +68,6 @@ fn reset(off: u64) {
     reset1(3);
 }
 
-static LEDS: UCell<u64> = UCell::new(0);
-
-const PWM_PRESCALE: u32 = (crate::CONFIG.clk / 1000_000).max(1);
-const PWM_DIV: u32 = crate::CONFIG.clk / PWM_PRESCALE / 100;
-const _: () = assert!(PWM_DIV <= 65536);
-
 pub fn init() {
     let rcc = unsafe {&*stm32g030::RCC::PTR};
     let tim = unsafe {&*TIM::PTR};
@@ -79,7 +83,7 @@ pub fn init() {
     tim.CCER.write(|w| w.CC1E().set_bit().CC2E().set_bit());
     tim.CR1.write(|w| w.CEN().set_bit());
 
-    stm_common::interrupt::enable(INTERRUPT);
+    stm_common::interrupt::enable_priority(INTERRUPT, 0);
 }
 
 pub fn set_leds(leds: u64) {
@@ -118,7 +122,7 @@ fn calc_duty(delta: u32) -> u32 {
     const RANGE: f64 = PWM_DIV as f64 * (0.5 - 0.025);
     const SCALE_F: f64 = RANGE * 65536.0 / MAX as f64;
     const SCALE: u32 = (SCALE_F + 0.5) as u32;
-    PWM_DIV / 2 - (SCALE * delta >> 16)
+    (SCALE * delta >> 16) + PWM_DIV / 40
 }
 
 pub fn update_duty(delta: u32) {
@@ -170,7 +174,10 @@ fn test_shr8() {
 
 #[test]
 fn test_pwm_duty() {
-    assert_eq!(calc_duty(0), PWM_DIV / 2);
     let max = crate::adc::OVER3 + crate::adc::UNDER3;
-    assert_eq!(calc_duty(max), PWM_DIV / 40 + 1);
+    assert!(calc_duty(max) <= PWM_DIV / 2);
+    assert!(calc_duty(max) >= PWM_DIV / 2 - 1);
+    assert!(calc_duty(0) >= PWM_DIV / 40);
+    assert!(calc_duty(0) <= PWM_DIV / 40 + 1);
+    assert!(calc_duty(0) > 10);
 }

@@ -1,11 +1,10 @@
 
 use stm32g030::Interrupt::ADC as INTERRUPT;
 
-pub const OVER3: u32 = 273;
+pub const OVER3: u32 = 0;
 pub const UNDER3: u32 = 273;
 
-macro_rules! dbgln {
-    ($($tt: tt)*) => {if false {stm_common::dbgln!($($tt)*)}}
+macro_rules! dbgln {($($tt: tt)*) => {if true {stm_common::dbgln!($($tt)*)}}
 }
 
 pub fn power_up() {
@@ -47,8 +46,7 @@ pub fn isr() {
     if isr.EOCAL().bit() {
         dbgln!("Cal done, enable");
         // Enable the ADC!!!
-        adc.CR.write(
-            |w| w.ADVREGEN().set_bit().ADEN().set_bit());
+        adc.CR.write(|w| w.ADVREGEN().set_bit().ADEN().set_bit());
     }
     if isr.ADRDY().bit() {
         // Start a calibration.

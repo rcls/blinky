@@ -9,9 +9,6 @@ static COUNT: VCell<i32> = VCell::new(0);
 
 static CONTEXT: SCell<Context> = SCell::new(Context::from_waker(Waker::noop()));
 
-/// Number of wake-ups per second.
-pub const SECOND: u32 = 100;
-
 #[derive_const(Default)]
 struct Pendsv {
     alloc: i32,

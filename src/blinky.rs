@@ -21,7 +21,7 @@
 
 use stm_common::vcell::UCell;
 
-use crate::pendsv::SECOND;
+use pulse::SECOND;
 
 mod adc;
 mod chars;
@@ -36,7 +36,7 @@ mod pulse;
 const DEBUG_ENABLE: bool = !CONFIG.no_debug;
 
 const CONFIG: cpu::Config =
-    *cpu::Config::new(250_000).adc().lazy_debug().pendsv().pulse();
+    *cpu::Config::new(250_000).adc().no_debug().pendsv().pulse();
 
 /// Entry point used by the dbg! and dbgln! macros.
 fn debug_fmt(fmt: core::fmt::Arguments) {
@@ -67,8 +67,6 @@ const fn start() -> impl Future<Output = !> {
         //pendsv::sleep(500).await;
         let mut display = marque::Display::default();
         loop {
-            stm_common::dbgln!("Async task is running :-)");
-
             pendsv::sleep(SECOND).await;
 
             const STR: &[u8] = &chars::map_str(b"MERRY CHRISTMAS ");
@@ -84,7 +82,7 @@ fn main() -> ! {
 
     rcc.IOPENR.write(
         |w|w.GPIOAEN().set_bit().GPIOBEN().set_bit().GPIOCEN().set_bit()
-            .GPIODEN().set_bit().GPIOFEN().set_bit());
+            .GPIODEN().set_bit());
 
     if CONFIG.is_lazy_debug() || CONFIG.no_debug {
         let gpioa = unsafe {&*stm32g030::GPIOA::PTR};
@@ -103,10 +101,6 @@ fn main() -> ! {
         gpio.BSRR.write(|w| w.bits(bits));
         gpio.MODER.modify(|r, w| w.bits(r.bits() & !(bit2 * 2) | bit2));
     }
-
-    // PF1 is the feedback from the PSU.
-    let gpiof = unsafe {&*stm32g030::GPIOF::PTR};
-    gpiof.MODER.modify(|_, w| w.MODER1().bits(0));
 
     pendsv::init();
     pulse::init();
