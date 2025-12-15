@@ -10,106 +10,70 @@ use stm_common::vcell::{UCell, VCell};
 use stm32g030::TIM3 as TIM;
 use stm32g030::Interrupt::TIM3 as INTERRUPT;
 
-use crate::leds;
-
-mod text;
+use crate::leds::{LED_EVEN, LED_ODD};
 
 // Number of PWM pulses per second.
 pub const RATE: u32 = 80;
 
-const PWM_PRESCALE: u32 = (crate::CONFIG.clk / 50_000).max(1);
-const PWM_DIV: u32 = crate::CONFIG.clk / PWM_PRESCALE / RATE;
+const PWM_PRESCALE: u32 = (crate::CONFIG.clk / 250_000).max(1);
+pub const PWM_DIV: u32 = crate::CONFIG.clk / PWM_PRESCALE / RATE;
+pub const CLOCKS_PER_TICK: u32 = PWM_DIV * crate::pendsv::PWM_PER_TICK;
+
 const _: () = assert!(PWM_PRESCALE <= 65536);
 const _: () = assert!(PWM_DIV <= 65536);
 const _: () = assert!(RATE * PWM_DIV * PWM_PRESCALE == crate::CONFIG.clk);
 const _: () = assert!(PWM_DIV >= 500);
 
-/// Currently displaying LEDs.
-static LEDS: UCell<u64> = UCell::new(0);
+#[derive_const(Default)]
+#[derive(Copy, Clone)]
+struct Leds {
+    even: u64,
+    odd: u64,
+}
 
-/// LEDs to display starting at next PWM cycle.
-static NEXT_LEDS: UCell<u64> = UCell::new(0);
+/// Currently displaying LEDs.
+static LEDS: UCell<Leds> = UCell::default();
 /// Which interrupt bit to use for application ticks.
 static APP_MASK: VCell<u32> = VCell::new(0);
-
-macro_rules! dbgln {($($tt: tt)*) => {if false {stm_common::dbgln!($($tt)*)}}}
 
 pub fn init() {
     let rcc = unsafe {&*stm32g030::RCC::PTR};
     let tim = unsafe {&*TIM::PTR};
 
     APP_MASK.write(1);
+    *unsafe {LEDS.as_mut()} = Leds{
+        even: LED_EVEN|LED_ODD, odd: LED_EVEN|LED_ODD};
 
     rcc.APBENR1.modify(|_, w| w.TIM3EN().set_bit());
 
     tim.PSC.write(|w| w.bits(PWM_PRESCALE - 1));
     tim.ARR.write(|w| w.bits(PWM_DIV - 1));
-    tim.DIER.write(
-        |w|w.UIE().set_bit()
-            .CC1IE().set_bit().CC2IE().set_bit().CC3IE().set_bit());
+    tim.DIER.write(|w| w.UIE().set_bit().CC1IE().set_bit().CC2IE().set_bit());
     tim.CCMR1_Output().write(
-        |w|w.OC1M().bits(1).OC1PE().set_bit()
-            .OC2M().bits(1).OC2PE().set_bit());
-    tim.CCMR2_Output().write(|w| w.OC3M().bits(1).OC3PE().set_bit());
+        |w|w.OC1PE().set_bit().OC1M().bits(1).OC1PE().set_bit()
+            .OC1PE().set_bit().OC2M().bits(1).OC2PE().set_bit());
     tim.CR1.write(|w| w.CEN().set_bit());
 
     stm_common::interrupt::enable_priority(INTERRUPT, crate::cpu::PRIO_PULSE);
 }
 
-pub fn set_leds(leds: u64) {
+/// LEDs should have been converted to negative logic by the caller.
+pub fn apply_leds(even: u64, odd: u64) {
     stm_common::interrupt::disable_all();
-    *unsafe {NEXT_LEDS.as_mut()} = leds;
+    *unsafe {LEDS.as_mut()} = Leds{even, odd};
     stm_common::interrupt::enable_all();
 }
 
-pub fn apply_leds() {
-    stm_common::interrupt::disable_all();
-    *unsafe {LEDS.as_mut()} = *NEXT_LEDS;
-    stm_common::interrupt::enable_all();
-}
-
-#[inline]
-pub const fn shr8(val: u64) -> u64 {
-    let (lo, hi) = (val as u32, (val >> 32) as u32);
-    let (lo, hi) = (lo >> 8 | hi << 24, hi >> 8);
-    lo as u64 | (hi as u64) << 32
-}
-
-pub fn set_display(display: u64) {
-    let mut leds = 0;
-    let mut d = display;
-    for i in 0 .. 6 {
-        leds |= crate::leds::COLUMNS[i][d as usize & 0xff];
-        d = shr8(d);
-    }
-    set_leds(leds);
-    if crate::DEBUG_ENABLE {
-        let strings = text::blocks(display);
-        dbgln!("{}{}{}\n{}{}{}",
-               strings[0], strings[1], strings[2],
-               strings[3], strings[4], strings[5]);
-    }
-}
-
-/// Go from 50% duty at delta==0 to 2.5% duty at delta ≈ OVER3 + UNDER3.
-fn calc_duty(delta: u32) -> u32 {
-    const MAX: u32 = crate::adc::OVER3 + crate::adc::UNDER3;
-    const RANGE: f64 = PWM_DIV as f64 * (0.5 - 0.025);
-    const SCALE_F: f64 = RANGE * 65536.0 / MAX as f64;
-    const SCALE: u32 = (SCALE_F + 0.5) as u32;
-    (SCALE * delta >> 16) + PWM_DIV / 40
-}
-
-pub fn update_duty(delta: u32) {
+pub fn set_duty(duty1: u32, duty2: u32) {
     let tim = unsafe {&*TIM::PTR};
-    let pwm16 = calc_duty(delta);
-    tim.CCR1.write(|w| w.bits(pwm16));
-    tim.CCR2.write(|w| w.bits(2 * pwm16));
-    if pwm16 <= 1000 / PWM_PRESCALE {
-        APP_MASK.write(4); // Trigger application update on CCR2.
+    tim.CCR1.write(|w| w.bits(duty1));
+    tim.CCR2.write(|w| w.bits(duty2));
+    if duty2 <= PWM_DIV / 2 {
+        // Trigger application update on CC2.
+        APP_MASK.write(4);
     }
     else {
-        APP_MASK.write(1); // Trigger application update on Update interrupt.
+        APP_MASK.write(2); // CC1.
     }
 }
 
@@ -118,25 +82,21 @@ fn isr() {
     let sr = tim.SR.read();
     tim.SR.write(|w| w.bits(!sr.bits()));
     // First, update the LEDs, we want low timing jitter on this.
-    let leds = *LEDS;
+    let leds = LEDS.as_ref();
     match sr.bits() & 7 {
         1 | 5 => // UIF with or without CC2.
             // Active evens asserted low, all others deasserted high.
-            set(leds::LED_EVEN & !leds | leds::LED_ODD, leds::LED_EVEN),
-        2 | 3 | 7 => // CC1 with or without UIF.
-            // Also includes UIF+CC1+CC2.  This probably means that the previous
-            // PWM cycle was near-full-duty (CC2 at end) and this PWM cycle is
-            // low (CC1 at start).
+            set(leds.even, LED_EVEN | LED_ODD),
+        2 | 3 => // CC1 with or without UIF.
             // Active odds asserted low.
-            set(leds::LED_ODD & !leds | leds::LED_EVEN, leds::LED_ODD),
-        4 | 6 => // CC2 with or without CC1.
+            set(leds.odd, LED_EVEN | LED_ODD),
+        4 | 6 | 7 => // CC2 with or without CC1.
             // Everything deasserted high.
-            set(leds::LED_ODD | leds::LED_EVEN, 0),
+            set(LED_ODD | LED_EVEN, 0),
         0 => (), // Unexpected wake-up!
         _ => stm_common::utils::unreachable(),
-
     }
-    if sr.CC3IF().bit() {
+    if sr.bits() & APP_MASK.read() != 0 {
         crate::pendsv::trigger();
     }
 }
@@ -160,24 +120,4 @@ impl crate::cpu::Config {
     pub const fn pulse(&mut self) -> &mut Self {
         self.isr(INTERRUPT, isr)
     }
-}
-
-#[test]
-fn test_shr8() {
-    for i in 0 .. 64 {
-        for j in 0 .. 64 {
-            let x = 1 << i | 1 << j;
-            assert_eq!(shr8(x), x >> 8);
-        }
-    }
-}
-
-#[test]
-fn test_pwm_duty() {
-    let max = crate::adc::OVER3 + crate::adc::UNDER3;
-    assert!(calc_duty(max) <= PWM_DIV / 2);
-    assert!(calc_duty(max) >= PWM_DIV / 2 - 1);
-    assert!(calc_duty(0) >= PWM_DIV / 40);
-    assert!(calc_duty(0) <= PWM_DIV / 40 + 1);
-    assert!(calc_duty(0) > 10);
 }

@@ -1,6 +1,8 @@
 
 use stm32g030::Interrupt::ADC as INTERRUPT;
 
+use crate::pulse::CLOCKS_PER_TICK;
+
 pub const OVER3: u32 = 273;
 pub const UNDER3: u32 = 273;
 
@@ -75,7 +77,7 @@ pub fn isr() {
         let top = cal + OVER3;
         let max = OVER3 + UNDER3;
         let delta = if top > counts {(top - counts).min(max)} else {0};
-        crate::pulse::update_duty(delta);
+        crate::pendsv::store_duty(calc_duty(delta));
 
         let delta = cal as i32 - counts as i32;
         const SCALE_F: f64 = 3000.0 * 3000.0 / 1212.0 / 4096.0;
@@ -86,6 +88,22 @@ pub fn isr() {
         // Log the counts...
         dbgln!("ADC {counts} {delta} {offset}");
     }
+}
+
+/// Go from 50% duty at delta==0 to 2.5% duty at delta ≈ OVER3 + UNDER3.
+fn calc_duty(delta: u32) -> u32 {
+    const MAX: u32 = crate::adc::OVER3 + crate::adc::UNDER3;
+    const RANGE: u32 = CLOCKS_PER_TICK * (20 - 1) / 40;
+    const SCALE: u32 = (RANGE * 65536).div_ceil(MAX);
+    (SCALE * delta >> 16) + CLOCKS_PER_TICK / 40
+}
+
+#[test]
+fn test_pwm_duty() {
+    let max = crate::adc::OVER3 + crate::adc::UNDER3;
+    assert!(calc_duty(max) == CLOCKS_PER_TICK / 2);
+    assert!(calc_duty(0) == CLOCKS_PER_TICK / 40);
+    assert!(calc_duty(0) > 10);
 }
 
 impl crate::cpu::Config {
