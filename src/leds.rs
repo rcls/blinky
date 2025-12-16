@@ -55,6 +55,7 @@ pub const PORT_STUFF: ([u32; 4], [u32; 4], [[u32; 2]; 4]) = {
 
 pub const LED_EVEN: u64 = LED_EVEN_ODD.0;
 pub const LED_ODD : u64 = LED_EVEN_ODD.1;
+pub const LED_ALL : u64 = LED_EVEN | LED_ODD;
 
 const LED_EVEN_ODD: (u64, u64) = {
     let (mut a, mut b) = (0, 0);
@@ -99,8 +100,8 @@ fn unique() {
 fn bit_counts() {
     assert_eq!(LED_ODD .count_ones(), 18);
     assert_eq!(LED_EVEN.count_ones(), 18);
-    let led_all = LED_ODD | LED_EVEN;
-    assert_eq!(led_all .count_ones(), 36);
+    assert_eq!(LED_ALL .count_ones(), 36);
+    assert_eq!(LED_ODD & LED_EVEN, 0);
 }
 
 #[test]

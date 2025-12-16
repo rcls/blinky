@@ -1,12 +1,11 @@
 use stm_common::vcell::{UCell, VCell};
 
-use crate::{leds::{LED_EVEN, LED_ODD}, pulse::{CLOCKS_PER_TICK, PWM_DIV}};
-
 mod text;
 
 /// Number of application wake-ups per second.
 pub const SECOND: u32 = 5;
-pub const PWM_PER_TICK: u32 = crate::pulse::RATE / SECOND;
+/// Number of PWM cycles per tick.
+pub const CYCLES_PER_TICK: u32 = crate::pulse::RATE / SECOND;
 
 /// Trigger count from PWM.
 static COUNT: VCell<i32> = VCell::new(0);
@@ -16,15 +15,6 @@ static APP_COUNT: VCell<i32> = VCell::new(0);
 
 /// LEDs to display next tick.
 static NEXT_LEDS: UCell<u64> = UCell::new(0);
-
-#[derive(Copy, Clone)]
-#[derive_const(Default)]
-struct PendingDuty {
-    pending: u32,
-    combine: bool,
-}
-/// Duty cycle to apply next tick.
-static PENDING_DUTY: UCell<PendingDuty> = UCell::default();
 
 macro_rules! dbgln {($($tt: tt)*) => {if false {stm_common::dbgln!($($tt)*)}}}
 
@@ -73,50 +63,25 @@ pub fn sleep(wait: u32) {
     dbgln!("Wakes");
 }
 
-pub fn store_duty(total: u32) {
-    let pending = unsafe {PENDING_DUTY.as_mut()};
-    let neg = !*NEXT_LEDS & (LED_EVEN | LED_ODD);
-    if total > CLOCKS_PER_TICK / 8 {
-        pending.pending = total / PWM_PER_TICK;
-        pending.combine = false;
-        crate::pulse::apply_leds(neg | LED_ODD, neg | LED_EVEN);
-    }
-    else {
-        pending.pending = total;
-        pending.combine = true;
-        crate::pulse::apply_leds(!0, neg);
-    }
-}
-
-fn update_duty() {
-    let pending = unsafe {PENDING_DUTY.as_mut()};
-    if pending.combine {
-        let todo = pending.pending.min(PWM_DIV);
-        pending.pending -= todo;
-        crate::pulse::set_duty(0, todo);
-    }
-    else {
-        crate::pulse::set_duty(pending.pending, pending.pending * 2);
-    }
-}
-
 fn pendsv_handler() {
     static ALLOC: UCell<i32> = UCell::new(0);
     let alloc = unsafe {ALLOC.as_mut()};
     // We loop just in case we miss a tick.  Or get a spurious wake-up.
     while alloc.wrapping_sub(COUNT.read()) < 0 {
         *alloc += 1;
-        update_duty();
 
-        const {assert!(PWM_PER_TICK.is_power_of_two())};
-        match *alloc as u32 & (PWM_PER_TICK - 1) {
+        const {assert!(CYCLES_PER_TICK.is_power_of_two())};
+        match *alloc as u32 & (CYCLES_PER_TICK - 1) {
             1 => {
                 // Trigger the app.
                 APP_COUNT.write(APP_COUNT.read().wrapping_add(1));
             }
-            0 => {
-                // Prep. for the next app tick.
+            0 => { // Prep. for the next app tick.
                 crate::adc::power_up();
+                // We are already past the point in the tick where we use the
+                // LED setting.  So set the next one.
+                crate::pulse::apply_leds(*NEXT_LEDS);
+                // Run the ADC conversion.
                 crate::adc::start();
             }
             _ => ()

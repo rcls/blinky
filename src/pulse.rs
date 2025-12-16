@@ -1,23 +1,22 @@
 //! LED pwm sequencing.  We use TIM3 which is a 16-bit timer with 4
-//! capture/compare registers.  The LEDs are PWM'd in two banks, with independent
-//! timing.  This allows two colours of LED to be driven with different duty
-//! cycles.  We drive the LEDs at approx 1kHz with approx 1000 counts on the
-//! duty.  (Assumes 1MHz clock).
+//! capture/compare registers.  The LEDs are PWM'd in two banks.
+//!  We drive the LEDs at approx 80Hz with 3125 PWM clocks per PWM cycle.
 //!
-//! Double buffering is used...
+//! Double buffering is used.
 
 use stm_common::vcell::{UCell, VCell};
 use stm32g030::TIM3 as TIM;
 use stm32g030::Interrupt::TIM3 as INTERRUPT;
 
-use crate::leds::{LED_EVEN, LED_ODD};
+use crate::leds::{LED_ALL, LED_EVEN, LED_ODD};
 
 // Number of PWM pulses per second.
 pub const RATE: u32 = 80;
 
+/// Prescaler for the PWM timer.
 const PWM_PRESCALE: u32 = (crate::CONFIG.clk / 250_000).max(1);
+/// Number of PWM clocks per pwm cycle.
 pub const PWM_DIV: u32 = crate::CONFIG.clk / PWM_PRESCALE / RATE;
-pub const CLOCKS_PER_TICK: u32 = PWM_DIV * crate::pendsv::PWM_PER_TICK;
 
 const _: () = assert!(PWM_PRESCALE <= 65536);
 const _: () = assert!(PWM_DIV <= 65536);
@@ -41,8 +40,7 @@ pub fn init() {
     let tim = unsafe {&*TIM::PTR};
 
     APP_MASK.write(1);
-    *unsafe {LEDS.as_mut()} = Leds{
-        even: LED_EVEN|LED_ODD, odd: LED_EVEN|LED_ODD};
+    *unsafe {LEDS.as_mut()} = Leds{even: LED_ALL, odd: LED_ALL};
 
     rcc.APBENR1.modify(|_, w| w.TIM3EN().set_bit());
 
@@ -57,18 +55,20 @@ pub fn init() {
     stm_common::interrupt::enable_priority(INTERRUPT, crate::cpu::PRIO_PULSE);
 }
 
-/// LEDs should have been converted to negative logic by the caller.
-pub fn apply_leds(even: u64, odd: u64) {
+/// Set the LED pattern for future PWM cycles.
+pub fn apply_leds(pos: u64) {
     stm_common::interrupt::disable_all();
-    *unsafe {LEDS.as_mut()} = Leds{even, odd};
+    let leds = unsafe {LEDS.as_mut()};
+    leds.even = LED_ALL & !pos | LED_ODD;
+    leds.odd  = LED_ALL & !pos | LED_EVEN;
     stm_common::interrupt::enable_all();
 }
 
-pub fn set_duty(duty1: u32, duty2: u32) {
+pub fn set_duty(duty: u32) {
     let tim = unsafe {&*TIM::PTR};
-    tim.CCR1.write(|w| w.bits(duty1));
-    tim.CCR2.write(|w| w.bits(duty2));
-    if duty2 <= PWM_DIV / 2 {
+    tim.CCR1.write(|w| w.bits(duty));
+    tim.CCR2.write(|w| w.bits(duty * 2));
+    if duty <= PWM_DIV / 4 {
         // Trigger application update on CC2.
         APP_MASK.write(4);
     }
@@ -86,14 +86,14 @@ fn isr() {
     match sr.bits() & 7 {
         1 | 5 => // UIF with or without CC2.
             // Active evens asserted low, all others deasserted high.
-            set(leds.even, LED_EVEN | LED_ODD),
-        2 | 3 => // CC1 with or without UIF.
+            set(leds.even, LED_ALL),
+        2 | 3 | 7 => // CC1 with or without UIF.
             // Active odds asserted low.
-            set(leds.odd, LED_EVEN | LED_ODD),
-        4 | 6 | 7 => // CC2 with or without CC1.
+            set(leds.odd, LED_ALL),
+        4 | 6 => // CC2 with or without CC1.
             // Everything deasserted high.
-            set(LED_ODD | LED_EVEN, 0),
-        0 => (), // Unexpected wake-up!
+            set(LED_ALL, 0),
+        0 => return, // Unexpected wake-up!
         _ => stm_common::utils::unreachable(),
     }
     if sr.bits() & APP_MASK.read() != 0 {
