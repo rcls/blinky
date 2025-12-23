@@ -1,0 +1,20 @@
+#!/usr/bin/JLinkExe
+
+exitonerror 1
+
+speed 1000
+selectinterface SWD
+device STM32G030C6
+connect
+
+// DBG at 0x40015800
+// DBGMCUCR at +4
+// DBG_STANDBY: bit 2
+// DBG_STOP: bit 1
+loadfile ./target/thumbv6m-none-eabi/release/blinky.elf
+
+write4 0x40015804, 0
+
+reset
+go
+exit

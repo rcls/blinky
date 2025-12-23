@@ -30036,6 +30036,53 @@
 			)
 		)
 	)
+	(gr_poly
+		(pts
+			(xy 113.97 80.95) (xy 108.89 86) (xy 113.97 91.11) (xy 119.05 86.03)
+		)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "Dwgs.User")
+		(uuid "4dd5ca08-d4d5-4059-a660-4434f2878039")
+	)
+	(gr_rect
+		(start 81 81)
+		(end 88 88)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(fill no)
+		(layer "Dwgs.User")
+		(uuid "71da5ab1-2423-4686-9e6c-a95d256b1b14")
+	)
+	(gr_poly
+		(pts
+			(xy 113.97 108.89) (xy 108.89 113.94) (xy 113.97 119.05) (xy 119.05 113.97)
+		)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "Dwgs.User")
+		(uuid "8fb55417-43b4-431b-b038-b9daf2697c8c")
+	)
+	(gr_poly
+		(pts
+			(xy 86.03 108.89) (xy 80.95 113.94) (xy 86.03 119.05) (xy 91.11 113.97)
+		)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "Dwgs.User")
+		(uuid "a1fb9250-8d2f-421f-9403-8129dc8a5b9f")
+	)
 	(gr_rect
 		(start 76.5 81)
 		(end 87.5 88.5)

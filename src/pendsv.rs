@@ -29,12 +29,23 @@ pub fn init() {
     unsafe {pendsv_prio.write(crate::cpu::PRIO_PENDSV as u32 * 65536)};
 }
 
+pub fn hold_display(display: u64, wait: u32) {
+    set_display(display);
+    sleep(wait);
+}
+
+pub fn animate(list: &[u64], wait: u32) {
+    for &display in list {
+        hold_display(display, wait);
+    }
+}
+
 pub fn set_display(display: u64) {
     let mut leds = 0;
     let mut d = display;
     for i in 0 .. 6 {
         leds |= crate::leds::COLUMNS[i][d as usize & 0xff];
-        d = shr8(d);
+        d = crate::marque::shr8(d);
     }
     stm_common::interrupt::disable_all();
     *unsafe {NEXT_LEDS.as_mut()} = leds;
@@ -47,6 +58,7 @@ pub fn set_display(display: u64) {
     }
 }
 
+#[cold]
 pub fn trigger() {
     COUNT.write(COUNT.read().wrapping_add(1));
     cortex_m::peripheral::SCB::set_pendsv();
@@ -71,30 +83,26 @@ fn pendsv_handler() {
         *alloc += 1;
 
         const {assert!(CYCLES_PER_TICK.is_power_of_two())};
-        match *alloc as u32 & (CYCLES_PER_TICK - 1) {
+        let phase = *alloc as u32 & (CYCLES_PER_TICK - 1);
+        const ADC2: u32 = CYCLES_PER_TICK / 2;
+        match phase {
             1 => {
                 // Trigger the app.
                 APP_COUNT.write(APP_COUNT.read().wrapping_add(1));
             }
-            0 => { // Prep. for the next app tick.
+            0|ADC2 => {
                 crate::adc::power_up();
                 // We are already past the point in the tick where we use the
                 // LED setting.  So set the next one.
-                crate::pulse::apply_leds(*NEXT_LEDS);
+                if phase == 0 {
+                    crate::pulse::apply_leds(*NEXT_LEDS);
+                }
                 // Run the ADC conversion.
                 crate::adc::start();
             }
             _ => ()
         }
     }
-}
-
-/// rustc generates bloated out-of-line code.  We don't want that.
-#[inline]
-pub const fn shr8(val: u64) -> u64 {
-    let (lo, hi) = (val as u32, (val >> 32) as u32);
-    let (lo, hi) = (lo >> 8 | hi << 24, hi >> 8);
-    lo as u64 | (hi as u64) << 32
 }
 
 impl crate::cpu::Config {
@@ -107,14 +115,4 @@ impl crate::cpu::Config {
 #[test]
 fn check_isr() {
     assert!(crate::cpu::VECTORS.pendsv == pendsv_handler);
-}
-
-#[test]
-fn test_shr8() {
-    for i in 0 .. 64 {
-        for j in 0 .. 64 {
-            let x = 1 << i | 1 << j;
-            assert_eq!(shr8(x), x >> 8);
-        }
-    }
 }

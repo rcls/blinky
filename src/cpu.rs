@@ -44,6 +44,8 @@ pub fn init() {
         }
         barrier();
     }
+
+    crate::config::generate_config();
 }
 
 #[derive(Clone, Copy)]

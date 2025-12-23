@@ -14,7 +14,7 @@ const fn gen_columns() -> [[u64; 64]; 6] {
             let mut row = 0;
             while row < 6 {
                 if bits & (1 << row) != 0 {
-                    *val |= 1 << LEDS[column + row * 6];
+                    *val |= 1 << LEDS[column + 30 - row * 6];
                 }
                 row += 1;
             }
@@ -77,14 +77,14 @@ const B: u8 = 16;
 const C: u8 = 32;
 const D: u8 = 48;
 
-// First itema in the array are D16 .. D11, note the reverse column order.
+// First items in the array are D11 .. D16.
 pub static LEDS: [u8; 36] = [
-    D +  2, D +  3, B +  3, B + 4, B +  5, B +  6,
-    A + 12, D +  0, D +  1, B + 7, B +  8, C + 13,
-    A + 10, A + 11, A + 15, B + 9, C + 14, C + 15,
-    B + 15, B + 14, B + 12, A + 2, A +  0, A +  8,
-    B + 13, B + 11, B + 10, A + 4, A +  3, A +  1,
-    B +  2, B +  1, B +  0, A + 7, A +  6, A +  5,
+    B +  6, B +  5, B + 4, B +  3, D +  3, D +  2,
+    C + 13, B +  8, B + 7, D +  1, D +  0, A + 12,
+    C + 15, C + 14, B + 9, A + 15, A + 11, A + 10,
+    A +  8, A +  0, A + 2, B + 12, B + 14, B + 15,
+    A +  1, A +  3, A + 4, B + 10, B + 11, B + 13,
+    A +  5, A +  6, A + 7, B +  0, B +  1, B +  2,
 ];
 
 #[test]

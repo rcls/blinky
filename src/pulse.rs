@@ -4,7 +4,7 @@
 //!
 //! Double buffering is used.
 
-use stm_common::vcell::{UCell, VCell};
+use stm_common::vcell::UCell;
 use stm32g030::TIM3 as TIM;
 use stm32g030::Interrupt::TIM3 as INTERRUPT;
 
@@ -32,24 +32,25 @@ struct Leds {
 
 /// Currently displaying LEDs.
 static LEDS: UCell<Leds> = UCell::default();
-/// Which interrupt bit to use for application ticks.
-static APP_MASK: VCell<u32> = VCell::new(0);
 
 pub fn init() {
     let rcc = unsafe {&*stm32g030::RCC::PTR};
     let tim = unsafe {&*TIM::PTR};
 
-    APP_MASK.write(1);
     *unsafe {LEDS.as_mut()} = Leds{even: LED_ALL, odd: LED_ALL};
 
     rcc.APBENR1.modify(|_, w| w.TIM3EN().set_bit());
 
     tim.PSC.write(|w| w.bits(PWM_PRESCALE - 1));
     tim.ARR.write(|w| w.bits(PWM_DIV - 1));
-    tim.DIER.write(|w| w.UIE().set_bit().CC1IE().set_bit().CC2IE().set_bit());
+    tim.DIER.write(
+        |w|w.UIE().set_bit()
+            .CC1IE().set_bit().CC2IE().set_bit().CC3IE().set_bit());
     tim.CCMR1_Output().write(
         |w|w.OC1PE().set_bit().OC1M().bits(1).OC1PE().set_bit()
             .OC1PE().set_bit().OC2M().bits(1).OC2PE().set_bit());
+    tim.CCMR2_Output().write(
+        |w|w.OC3PE().set_bit().OC3M().bits(1).OC3PE().set_bit());
     tim.CR1.write(|w| w.CEN().set_bit());
 
     stm_common::interrupt::enable_priority(INTERRUPT, crate::cpu::PRIO_PULSE);
@@ -70,10 +71,11 @@ pub fn set_duty(duty: u32) {
     tim.CCR2.write(|w| w.bits(duty * 2));
     if duty <= PWM_DIV / 4 {
         // Trigger application update on CC2.
-        APP_MASK.write(4);
+        tim.CCR3.write(|w| w.bits(duty * 2));
     }
     else {
-        APP_MASK.write(2); // CC1.
+        // Trigger application update on CC1.
+        tim.CCR3.write(|w| w.bits(duty));
     }
 }
 
@@ -87,16 +89,16 @@ fn isr() {
         1 | 5 => // UIF with or without CC2.
             // Active evens asserted low, all others deasserted high.
             set(leds.even, LED_ALL),
-        2 | 3 | 7 => // CC1 with or without UIF.
+        2 | 3 => // CC1 with or without UIF.
             // Active odds asserted low.
             set(leds.odd, LED_ALL),
-        4 | 6 => // CC2 with or without CC1.
+        4 | 6 | 7 => // CC2 with or without CC1.
             // Everything deasserted high.
             set(LED_ALL, 0),
         0 => return, // Unexpected wake-up!
         _ => stm_common::utils::unreachable(),
     }
-    if sr.bits() & APP_MASK.read() != 0 {
+    if sr.CC3IF().bit() {
         crate::pendsv::trigger();
     }
 }

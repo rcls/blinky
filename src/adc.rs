@@ -1,9 +1,11 @@
 
 use stm32g030::Interrupt::ADC as INTERRUPT;
 
-use crate::pulse::PWM_DIV;
-
+/// Approx change in ADC cal number for 0.3V change in Vcc.  This is used to
+/// set the point for maximum PWM.
 pub const OVER3: u32 = 273;
+/// Approx change in ADC cal number for 0.3V change in Vcc.  This is used to
+/// set the point for minimum PWM.
 pub const UNDER3: u32 = 273;
 
 macro_rules! dbgln {($($tt: tt)*) => {if false {stm_common::dbgln!($($tt)*)}}}
@@ -17,8 +19,6 @@ pub fn power_up() {
     // At 250kHz, this is 5 clock cycles...
     adc.CR.write(|w| w.ADVREGEN().set_bit());
 
-    // Turn ADC off once we're done.  FIXME or manual?
-    //adc.CFGR1.write(|w| w.AUTOFF().set_bit());
     // Set the ADC clock source to APB.
     adc.CFGR2.write(|w| w.CKMODE().set(3).LFTRIG().set_bit());
 }
@@ -28,7 +28,8 @@ pub fn start() {
         // If we're running fast then waste some time waiting for the ADC
         // power-up.
         for _ in 0 .. crate::CONFIG.clk / 250_000 {
-            stm_common::utils::nothing();
+            #[cfg(target_arch = "arm")]
+            cortex_m::asm::nop();
         }
     }
     let adc = unsafe {&*stm32g030::ADC::PTR};
@@ -53,6 +54,7 @@ pub fn isr() {
     adc.ISR.write(|w| w.set(isr.bits()));
     if isr.EOCAL().bit() {
         dbgln!("Cal done, enable");
+        stm_common::dbgln!("{:#x}", adc.CALFACT.read().bits());
         // Enable the ADC!!!
         adc.CR.write(|w| w.ADVREGEN().set_bit().ADEN().set_bit());
     }
@@ -72,12 +74,14 @@ pub fn isr() {
         let counts = adc.DR.read().bits();
         // Stop the ADC clock.
         rcc.APBENR2.modify(|_, w| w.ADCEN().clear_bit());
+        crate::random::RANDOM.stir(counts);
         // Compare with flash config & convert to mV offset.
+        let config = crate::config::get();
         let cal = unsafe{*(0x1fff75aa as *const u16)} as u32;
-        let top = cal + OVER3;
-        let max = OVER3 + UNDER3;
+        let top = cal + config.adc_over as u32;
+        let max = config.adc_max as u32;
         let delta = if top > counts {(top - counts).min(max)} else {0};
-        let duty = calc_duty(delta);
+        let duty = config.calc_duty(delta);
         crate::pulse::set_duty(duty);
 
         let delta = cal as i32 - counts as i32;
@@ -89,22 +93,6 @@ pub fn isr() {
         // Log the counts...
         dbgln!("ADC {counts} {delta} {offset}");
     }
-}
-
-/// Go from 50% duty at delta==0 to 2.5% duty at delta ≈ OVER3 + UNDER3.
-fn calc_duty(delta: u32) -> u32 {
-    const MAX: u32 = crate::adc::OVER3 + crate::adc::UNDER3;
-    const RANGE: u32 = PWM_DIV / 2 - PWM_DIV / 40;
-    const SCALE: u32 = (RANGE * 65536).div_ceil(MAX);
-    (SCALE * delta >> 16) + PWM_DIV / 40
-}
-
-#[test]
-fn test_pwm_duty() {
-    let max = crate::adc::OVER3 + crate::adc::UNDER3;
-    assert!(calc_duty(max) == PWM_DIV / 2);
-    assert!(calc_duty(0) == PWM_DIV / 40);
-    assert!(calc_duty(0) > 100);
 }
 
 impl crate::cpu::Config {
