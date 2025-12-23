@@ -180,7 +180,7 @@ fn main() -> ! {
     }
 
     for i in 0 .. 4 {
-        let gpio = leds::gpio(i as u8);
+        let gpio = leds::gpio(i);
         let bits = leds::PORT_BITS[i];
         let bit2 = leds::PORT_BIT2[i];
         gpio.BSRR.write(|w| w.bits(bits));

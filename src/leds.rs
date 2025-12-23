@@ -1,7 +1,4 @@
 
-
-pub const _: () = {let _ = &COLUMNS;};
-
 pub static COLUMNS: [[u64; 64]; 6] = gen_columns();
 
 const fn gen_columns() -> [[u64; 64]; 6] {
@@ -33,7 +30,7 @@ pub const PORT_BIT2: [u32; 4] = PORT_STUFF.1;
 pub const _PORT_BIT4: [[u32; 2]; 4] = PORT_STUFF.2;
 
 /// Return GPIOA ..= GPIOD based on n.
-pub fn gpio(n: u8) -> &'static stm32g030::gpiob::RegisterBlock {
+pub fn gpio(n: usize) -> &'static stm32g030::gpiob::RegisterBlock {
     let address = 0x5000_0000 + 0x400 * n as usize;
     unsafe {&* (address as *const stm32g030::gpiob::RegisterBlock)}
 }
@@ -53,23 +50,14 @@ pub const PORT_STUFF: ([u32; 4], [u32; 4], [[u32; 2]; 4]) = {
     (mask, bit2, bit4)
 };
 
-pub const LED_EVEN: u64 = LED_EVEN_ODD.0;
-pub const LED_ODD : u64 = LED_EVEN_ODD.1;
-pub const LED_ALL : u64 = LED_EVEN | LED_ODD;
-
-const LED_EVEN_ODD: (u64, u64) = {
-    let (mut a, mut b) = (0, 0);
+pub const LED_ALL: u64 = {
+    let mut all = 0;
     let mut i = 0;
-    while i < 6 {
-        let mut j = 0;
-        while j < 6 {
-            (a, b) = (b, a | 1 << LEDS[i * 6 + j]);
-            j += 1;
-        }
-        (a, b) = (b, a);
+    while i < LEDS.len() {
+        all |= 1 << LEDS[i];
         i += 1;
     }
-    (a, b)
+    all
 };
 
 const A: u8 = 0;
@@ -98,10 +86,7 @@ fn unique() {
 
 #[test]
 fn bit_counts() {
-    assert_eq!(LED_ODD .count_ones(), 18);
-    assert_eq!(LED_EVEN.count_ones(), 18);
-    assert_eq!(LED_ALL .count_ones(), 36);
-    assert_eq!(LED_ODD & LED_EVEN, 0);
+    assert_eq!(LED_ALL.count_ones(), 36);
 }
 
 #[test]

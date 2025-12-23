@@ -44,7 +44,7 @@ pub fn set_display(display: u64) {
     let mut leds = 0;
     let mut d = display;
     for i in 0 .. 6 {
-        leds |= crate::leds::COLUMNS[i][d as usize & 0xff];
+        leds |= crate::leds::COLUMNS[i][d as usize & 0x3f];
         d = crate::marque::shr8(d);
     }
     stm_common::interrupt::disable_all();
