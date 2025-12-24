@@ -502,7 +502,7 @@ const ODOTS4: Picture = [
     "*     ",
     "*   **",
 ];
-pub const CORNERS: u64 = parse(&[
+pub const FOUR_DOTS: u64 = parse(&[
     "*    *",
     "      ",
     "      ",
@@ -518,6 +518,15 @@ pub const LOVE: u64 = parse(&[
     " * *  ",
     "  *   ",
 ]);
+pub const CORNERS: u64 = parse(&[
+    "**  **",
+    "*    *",
+    "      ",
+    "      ",
+    "*    *",
+    "**  **",
+]);
+pub const FOUR_IDOTS: u64 = parse(&IDOTS2);
 
 
 #[test]

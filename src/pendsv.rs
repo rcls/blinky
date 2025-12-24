@@ -4,6 +4,8 @@ mod text;
 
 /// Number of application wake-ups per second.
 pub const SECOND: u32 = 5;
+/// Fifth of a second...
+pub const FIFTH: u32 = 1;
 /// Number of PWM cycles per tick.
 pub const CYCLES_PER_TICK: u32 = crate::pulse::RATE / SECOND;
 
@@ -29,6 +31,7 @@ pub fn init() {
     unsafe {pendsv_prio.write(crate::cpu::PRIO_PENDSV as u32 * 65536)};
 }
 
+#[inline(never)]
 pub fn hold_display(display: u64, wait: u32) {
     set_display(display);
     sleep(wait);
@@ -45,7 +48,7 @@ pub fn set_display(display: u64) {
     let mut d = display;
     for i in 0 .. 6 {
         leds |= crate::leds::COLUMNS[i][d as usize & 0x3f];
-        d = crate::marque::shr8(d);
+        d >>= 8;
     }
     stm_common::interrupt::disable_all();
     *unsafe {NEXT_LEDS.as_mut()} = leds;

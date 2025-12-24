@@ -19,7 +19,7 @@
 
 #![feature(const_async_blocks)]
 
-use crate::pendsv::{SECOND, animate, hold_display};
+use crate::pendsv::{FIFTH, SECOND, animate, hold_display};
 
 mod adc;
 mod chars;
@@ -49,38 +49,36 @@ fn debug_fmt(fmt: core::fmt::Arguments) {
 fn demo() {
     let mut d = 14 << 40;
     for _ in 0 .. 6 {
-        pendsv::sleep(SECOND);
-        pendsv::set_display(d);
-        d = marque::shr8(d);
+        pendsv::hold_display(d, SECOND);
+        d >>= 8;
     }
-    pendsv::sleep(SECOND);
-    pendsv::set_display(0x10 << 16);
-    pendsv::sleep(SECOND);
-    pendsv::set_display(0x10 << 24);
+    pendsv::hold_display(0x10 << 16, SECOND);
+    pendsv::hold_display(0x10 << 24, SECOND);
 }
 
 fn blink_in() {
     for _ in 0 .. 5 {
         hold_display(0, 1);
-        hold_display(chars::CDOT, 1);
+        hold_display(chars::CDOT, FIFTH);
     }
 }
 
 fn cycles() {
     for _ in 0 .. 3 {
-        animate(&chars::IDOTS, 1);
+        animate(&chars::IDOTS, FIFTH);
     }
-    hold_display(chars::MDOTS, 1);
-    for _ in 0 .. 2 {
-        animate(&chars::ODOTPS, 1);
+    hold_display(chars::MDOTS, FIFTH);
+    for _ in 0 .. 1 {
+        animate(&chars::ODOTPS, FIFTH);
     }
-    animate(&chars::ODOTPS[0 .. 4], 1);
-    hold_display(chars::CORNERS, 1);
+    animate(&chars::ODOTPS[0 .. 4], FIFTH);
+    hold_display(chars::FOUR_DOTS, FIFTH);
 }
 
-fn common_display() {
-     const STR: &[u8] = &chars::map_str(b"MERRY CHRISTMAS ");
-     marque::Display::default().marque_string(STR, SECOND / 5);
+fn finish() {
+    hold_display(0, FIFTH);
+    animate(&[chars::CORNERS, chars::FOUR_IDOTS, chars::CDOT], 2 * FIFTH);
+    hold_display(0, FIFTH);
 }
 
 fn nice1() {
@@ -88,31 +86,36 @@ fn nice1() {
     const U: u64 = chars::picture('U');
     hold_display(I, 2 * SECOND);
     for _ in 0 .. 5 {
-        hold_display(0, 1);
-        hold_display(chars::LOVE, 1);
+        hold_display(0, FIFTH);
+        hold_display(chars::LOVE, FIFTH);
     }
-    hold_display(0, 1);
+    hold_display(0, FIFTH);
     hold_display(U, 2 * SECOND);
 }
 
 fn nice2() {
-     const STR: &[u8] = &chars::map_str(b"HEY GOOD LOOKING ");
-     marque::Display::default().marque_string(STR, SECOND / 5);
+     const STR: &[u8] = &chars::map_str(b"LOOKING GOOD ");
+     marque::Display::default().rmarque_string(STR, FIFTH);
 }
 
 fn nice3() {
      const STR: &[u8] = &chars::map_str(b"NICE HAIR ");
-     marque::Display::default().marque_string(STR, SECOND / 5);
+     marque::Display::default().rmarque_string(STR, FIFTH);
+}
+
+fn nice4() {
+    const STR: &[u8] = &chars::map_str(b"KISS ME ");
+    marque::Display::default().rmarque_string(STR, FIFTH);
 }
 
 fn naughty1() {
      const STR: &[u8] = &chars::map_str(b"WHO FARTED? ");
-     marque::Display::default().marque_string(STR, SECOND / 5);
+     marque::Display::default().rmarque_string(STR, FIFTH);
 }
 
 fn naughty2() {
      const STR: &[u8] = &chars::map_str(b"LICK ME ");
-     marque::Display::default().marque_string(STR, SECOND / 5);
+     marque::Display::default().rmarque_string(STR, FIFTH);
 }
 
 /// Returns the future for running the asynchronous application code.
@@ -126,7 +129,7 @@ fn run() -> ! {
         loop { // Pattern to test LEDs.
             let mut d = 0x3f;
             while d != 0 {
-                hold_display(d, 2);
+                hold_display(d, 2 * FIFTH);
                 d <<= 8;
             }
         }
@@ -143,20 +146,23 @@ fn run() -> ! {
             || random::RANDOM.random_n(30) >= count.min(25) - 5;
 
         if normal {
-            common_display();
+            const STR: &[u8] = &chars::map_str(b"MERRY XMAS ");
+            marque::Display::default().marque_string(STR, FIFTH);
             hold_display(0, 2);
         }
         else {
             blink_in();
             cycles();
-            hold_display(0, 1);
-            match random::RANDOM.random_n(5) {
+            hold_display(0, FIFTH);
+            match random::RANDOM.random_n(6) {
                 0 => nice1(),
                 1 => nice2(),
                 2 => nice3(),
-                3 => naughty1(),
-                4|_ => naughty2(),
+                3 => nice4(),
+                4 => naughty1(),
+                5|_ => naughty2(),
             }
+            finish();
         }
     }
 }
