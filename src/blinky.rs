@@ -19,6 +19,7 @@
 
 #![feature(const_async_blocks)]
 
+use crate::marque::{marque_string, rmarque_string};
 use crate::pendsv::{FIFTH, SECOND, animate, hold_display};
 
 mod adc;
@@ -94,28 +95,28 @@ fn nice1() {
 }
 
 fn nice2() {
-     const STR: &[u8] = &chars::map_str(b"LOOKING GOOD ");
-     marque::Display::default().rmarque_string(STR, FIFTH);
+    const STR: &[u8] = &chars::map_str(b"LOOKING GOOD ");
+    rmarque_string(STR, FIFTH);
 }
 
 fn nice3() {
-     const STR: &[u8] = &chars::map_str(b"NICE HAIR ");
-     marque::Display::default().rmarque_string(STR, FIFTH);
+    const STR: &[u8] = &chars::map_str(b"NICE HAIR ");
+    rmarque_string(STR, FIFTH);
 }
 
 fn nice4() {
     const STR: &[u8] = &chars::map_str(b"KISS ME ");
-    marque::Display::default().rmarque_string(STR, FIFTH);
+    rmarque_string(STR, FIFTH);
 }
 
 fn naughty1() {
-     const STR: &[u8] = &chars::map_str(b"WHO FARTED? ");
-     marque::Display::default().rmarque_string(STR, FIFTH);
+    const STR: &[u8] = &chars::map_str(b"WHO FARTED? ");
+    rmarque_string(STR, FIFTH);
 }
 
 fn naughty2() {
-     const STR: &[u8] = &chars::map_str(b"LICK ME ");
-     marque::Display::default().rmarque_string(STR, FIFTH);
+    const STR: &[u8] = &chars::map_str(b"LICK ME ");
+    rmarque_string(STR, FIFTH);
 }
 
 /// Returns the future for running the asynchronous application code.
@@ -147,7 +148,7 @@ fn run() -> ! {
 
         if normal {
             const STR: &[u8] = &chars::map_str(b"MERRY XMAS ");
-            marque::Display::default().marque_string(STR, FIFTH);
+            marque_string(&mut 0, STR, FIFTH);
             hold_display(0, 2);
         }
         else {
