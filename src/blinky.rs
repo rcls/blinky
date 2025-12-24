@@ -109,6 +109,11 @@ fn nice4() {
     rmarque_string(STR, FIFTH);
 }
 
+fn nice5() {
+    const STR: &[u8] = &chars::map_str(b"PEACE ");
+    rmarque_string(STR, FIFTH);
+}
+
 fn naughty1() {
     const STR: &[u8] = &chars::map_str(b"WHO FARTED? ");
     rmarque_string(STR, FIFTH);
@@ -155,13 +160,14 @@ fn run() -> ! {
             blink_in();
             cycles();
             hold_display(0, FIFTH);
-            match random::RANDOM.random_n(6) {
+            match random::RANDOM.random_n(7) {
                 0 => nice1(),
                 1 => nice2(),
                 2 => nice3(),
                 3 => nice4(),
-                4 => naughty1(),
-                5|_ => naughty2(),
+                4 => nice5(),
+                5 => naughty1(),
+                6|_ => naughty2(),
             }
             finish();
         }
