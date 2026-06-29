@@ -7,17 +7,9 @@
 #![allow(unpredictable_function_pointer_comparisons)]
 // We do lots of const.
 #![feature(derive_const)]
-#![feature(const_clone, const_cmp, const_convert, const_default, const_index)]
-#![feature(const_slice_make_iter, const_trait_impl)]
-// For getting that Future into a static.
-#![feature(impl_trait_in_assoc_type)]
-// Convenience for dbgln! implementation.
-#![feature(format_args_nl)]
+#![feature(const_cmp, const_convert, const_default, const_trait_impl)]
 // For frameaddress() in the crash handler.
 #![feature(link_llvm_intrinsics)]
-#![feature(never_type)]
-
-#![feature(const_async_blocks)]
 
 use crate::marque::{marque_string, rmarque_string};
 use crate::pendsv::{FIFTH, SECOND, animate, hold_display};
